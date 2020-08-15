@@ -10,7 +10,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**XingTian (刑天)** is a componentized library for the development and verification of reinforcement learning algorithms. It supports multiple algorithms, including DQN, DDPG, PPO, and IMPALA etc, which could training agents in multiple environments, such as Gym, Atari, Torcs, StarCraft and so on.  To meet users' requirements for quick verification and solving RL problems, four modules are abstracted: `Algorithm`, `Model`, `Agent`, and `Environment`. They work in a similar way as the combination of `Lego' building blocks. For details about the architecture, please see the [Architecture introduction](./docs/basic_arch.en.md). 
+**XingTian (刑天)** is a componentized library for the development and verification of reinforcement learning algorithms. It supports multiple algorithms, including DQN, DDPG, PPO, and IMPALA etc, which could training agents in multiple environments, such as Gym, Atari, Torcs, StarCraft and so on.  To meet users' requirements for quick verification and solving RL problems, four modules are abstracted: `Algorithm`, `Model`, `Agent`, and `Environment`. They work in a similar way as the combination of `Lego' building blocks. For details about the architecture, please see the [Architecture introduction](./docs/basic_arch.en.md). Feel free to make good use of issue submission, or join our QQ chatroom (Chinese): 833345709.
 
 ## Dependencies
 
