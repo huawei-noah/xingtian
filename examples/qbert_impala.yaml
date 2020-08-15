@@ -1,0 +1,29 @@
+alg_para:
+  alg_name: IMPALA
+  alg_config: {
+    "train_per_checkpoint": 2,
+    'prepare_times_per_train': 4,
+    'BATCH_SIZE': 512,
+    }
+env_para:
+  env_name: AtariEnv
+  env_info: { 'name': QbertNoFrameskip-v4, 'vision': False}
+
+agent_para:
+  agent_name: AtariImpala
+  agent_num : 1
+  agent_config: {
+    'max_steps': 128,
+    'complete_step': 10000000
+    }
+
+model_para:
+  actor:
+    model_name: ImpalaCnn
+    state_dim: [84,84,4]
+    action_dim: 6
+    model_config: {
+      'LR': 0.0005
+      }
+
+env_num: 32

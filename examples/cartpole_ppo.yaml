@@ -1,0 +1,25 @@
+alg_para:
+  alg_name: PPO
+  alg_config:
+    process_num: 1
+    only_save_best_model: True
+
+env_para:
+  env_name: GymEnv
+  env_info: { 'name': CartPole-v0, 'vision': False}
+
+agent_para:
+  agent_name: CartpolePpo
+  agent_num : 1
+  agent_config: {
+    'max_steps': 200 ,
+    'complete_step': 5000000
+    }
+
+model_para:
+  actor:
+    model_name: PpoMlp
+    state_dim: [4]
+    action_dim: 2
+
+env_num: 10

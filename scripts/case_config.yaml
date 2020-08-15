@@ -1,0 +1,16 @@
+
+node_config: [[127.0.0.1, username1, passwd1]]#, [ip2, username2, passwdh2]]
+#test_node_config: [["ip", "username", "passwd"]]
+
+end_flag: True
+
+task: 'train'
+
+model_save_step: 200
+
+config_dir: 'examples/default_cases'
+#single_case: "examples/default_cases/ppo_pong.yaml"
+#single_case: "examples/default_cases/cartpole_ppo.yaml"
+#single_case: "examples/default_cases/impala_breakout.yaml"
+#single_case: "examples/default_cases/cartpole_reinforce.yaml"
+#single_case: "examples/default_cases/impala_cartpole.yaml"
