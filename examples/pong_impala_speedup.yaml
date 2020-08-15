@@ -1,0 +1,38 @@
+alg_para:
+  alg_name: IMPALAOpt
+
+  alg_config: {
+    "train_per_checkpoint": 3,
+    'prepare_times_per_train': 4,
+    'BATCH_SIZE': 1000,
+    }
+
+env_para:
+  env_name: VectorAtariEnv
+  env_info: {
+    'name': PongNoFrameskip-v4,
+    'vision': False,
+    'dim': 42,
+    'vector_env_size': 5,
+  }
+
+agent_para:
+  agent_name: AtariImpalaOpt
+  agent_num : 1
+  agent_config: {
+    'max_steps': 50,
+    'complete_step': 10020000,
+    'sync_model_interval': 2,
+    }
+
+model_para:
+  actor:
+    model_name: ImpalaCnnOpt
+    state_dim: [42,42,4]
+    action_dim: 6
+    model_config: {
+      'LR': 0.001,
+      'lr_schedule': None,
+      }
+
+env_num: 50

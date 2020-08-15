@@ -1,0 +1,29 @@
+alg_para:
+  alg_name: IMPALA
+  alg_config: {
+    "train_per_checkpoint": 2,
+    'prepare_times_per_train': 2,
+    'BATCH_SIZE': 800,
+    'episode_len': 200,
+  }
+
+env_para:
+  env_name: GymEnv
+  env_info: { 'name': CartPole-v0, 'vision': False}
+
+agent_para:
+  agent_name: CartpoleImpala
+  agent_num : 1
+  agent_config: {
+    'max_steps': 200,
+    'complete_step': 10000000,
+  }
+
+
+model_para:
+  actor:
+    model_name: ImpalaMlp
+    state_dim: [4]
+    action_dim: 2
+
+env_num: 5

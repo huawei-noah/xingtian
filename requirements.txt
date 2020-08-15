@@ -1,0 +1,15 @@
+zmq
+h5py
+gym[atari]
+tqdm
+imageio
+matplotlib==3.0.3
+Ipython
+pyyaml
+pyarrow==0.14.0
+lz4
+fabric2
+line_profiler
+redis
+absl-py
+psutil

@@ -1,0 +1,26 @@
+alg_para:
+  alg_name: DQN
+  alg_config: {
+    'prepare_times_per_train': 4,
+    'learning_starts': 100,
+    }
+
+env_para:
+  env_name: GymEnv
+  env_info: { 'name': CartPole-v0, 'vision': False}
+
+agent_para:
+  agent_name: CartpoleDqn
+  agent_num : 1
+  agent_config: {
+    'max_steps': 2000 ,
+    'complete_step': 5000000
+    }
+
+model_para:
+  actor:
+    model_name: DqnMlp
+    state_dim: [4]
+    action_dim: 2
+
+env_num: 1
