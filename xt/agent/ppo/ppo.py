@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Build CartPole agent for ppo algorithm."""
+"""Build base agent for PPO algorithm."""
 
 import numpy as np
 
@@ -27,14 +27,14 @@ from zeus.common.util.register import Registers
 
 
 @Registers.agent
-class CartpolePpo(Agent):
-    """Build Cartpole Agent with PPO algorithm."""
-
+class PPO(Agent):
+    """Build base agent with PPO algorithm."""
     def __init__(self, env, alg, agent_config, **kwargs):
         super().__init__(env, alg, agent_config, **kwargs)
         self.next_state = None
         self.next_action = None
         self.next_value = None
+        self.next_log_p = None
 
     def infer_action(self, state, use_explore):
         """
@@ -45,38 +45,40 @@ class CartpolePpo(Agent):
         :return: action value
         """
         if self.next_state is None:
-            # print("multi preidict")
             s_t = state
             predict_val = self.alg.predict(s_t)
             action = predict_val[0][0]
-            value = predict_val[1][0]
+            log_p = predict_val[1][0]
+            value = predict_val[2][0]
         else:
             s_t = self.next_state
             action = self.next_action
             value = self.next_value
-
-        real_action = np.random.choice(self.alg.action_dim, p=np.nan_to_num(action))
+            log_p = self.next_log_p
 
         # update transition data
         self.transition_data.update({
-            "cur_state": s_t,
-            "action": action,
-            "value": value,
-            "real_action": real_action
+            'cur_state': s_t,
+            'action': action,
+            'log_p': log_p,
+            'value': value,
         })
 
-        return real_action
+        return action
 
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
-        predict_val = self.alg.predict(next_raw_state)
-        self.next_action = predict_val[0][0]
-        self.next_value = predict_val[1][0]
         self.next_state = next_raw_state
+        predict_val = self.alg.predict(self.next_state)
+
+        self.next_action = predict_val[0][0]
+        self.next_log_p = predict_val[1][0]
+        self.next_value = predict_val[2][0]
+
         self.transition_data.update({
-            "reward": reward,
-            "next_value": self.next_value,
-            "done": done,
-            "info": info
+            'reward': reward,
+            'next_value': self.next_value,
+            'done': done,
+            'info': info
         })
 
         return self.transition_data
@@ -86,32 +88,30 @@ class CartpolePpo(Agent):
         return super().get_trajectory()
 
     def data_proc(self):
+        """Process data."""
         traj = self.trajectory
-        action = np.asarray(traj["real_action"])
-        action_label = np.eye(self.action_dim)[action.reshape(-1)]
+        state = np.asarray(traj['cur_state'])
+        action = np.asarray(traj['action'])
+        log_p = np.asarray(traj['log_p'])
+        value = np.asarray(traj['value'])
+        reward = np.asarray(traj['reward'])
+        next_value = np.asarray(traj['next_value'])
+        done = np.asarray(traj['done'])
 
-        value = np.asarray(traj["value"])
-        next_value = np.asarray(traj["next_value"])
-        dones = np.asarray(traj["done"])
-        dones[-1] = dones[-1] and not traj["info"][-1]
-        dones = np.expand_dims(dones, 1)
-        rewards = np.asarray(traj["reward"])
-        rewards = np.expand_dims(rewards, 1)
-        state = np.asarray(self.trajectory["cur_state"])
-        real_action = np.asarray(self.trajectory["action"])
+        done = np.expand_dims(done, axis=1)
+        reward = np.expand_dims(reward, axis=1)
+        discount = ~done * GAMMA
+        delta_t = reward + discount * next_value - value
+        adv = delta_t
 
-        discounts = ~dones * GAMMA
-        deltas = rewards + discounts * next_value - value
-        adv = deltas
         for j in range(len(adv) - 2, -1, -1):
-            adv[j] += adv[j + 1] * discounts[j] * LAM
+            adv[j] += adv[j + 1] * discount[j] * LAM
 
-        self.trajectory["adv"] = adv
-        self.trajectory["target_value"] = adv + value
-        self.trajectory["target_action"] = action_label
-        self.trajectory["cur_state"] = state
-        self.trajectory["action"] = real_action
-        self.trajectory["value"] = value
+        self.trajectory['cur_state'] = state
+        self.trajectory['action'] = action
+        self.trajectory['log_p'] = log_p
+        self.trajectory['adv'] = adv
+        self.trajectory['old_value'] = value
+        self.trajectory['target_value'] = adv + value
 
         del self.trajectory["next_value"]
-        del self.trajectory["real_action"]

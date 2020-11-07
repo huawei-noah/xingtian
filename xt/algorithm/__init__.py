@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-"""algorithm module.
-Contains the train and prepare data operations within special algorithm."""
+"""DESC: This module Contains the train and prepare data operations within special algorithm."""
+
 from __future__ import division, print_function
 
 from xt.algorithm.algorithm import Algorithm
@@ -18,7 +18,8 @@ from xt.framework import Registers
 
 def alg_builder(alg_name, model_info, alg_config, **kwargs):
     """
-    The API to build a algorithm instance.
+    DESC: The API to build a algorithm instance.
+
     :param alg_name:
     :param model_info:
     :param alg_config:

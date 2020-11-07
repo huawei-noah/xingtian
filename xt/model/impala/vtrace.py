@@ -46,7 +46,8 @@ def from_logic_outputs(behaviour_policy_logic_outputs,
                        clip_importance_sampling_threshold=1.0,
                        clip_pg_importance_sampling_threshold=1.0):
     """
-    calculate vtrace with logic outputs
+    Calculate vtrace with logic outputs.
+
     :param behaviour_policy_logic_outputs: behaviour_policy_logic_outputs
     :param target_policy_logic_outputs: target_policy_logic_outputs
     :param actions:

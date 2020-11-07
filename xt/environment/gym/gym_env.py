@@ -17,36 +17,39 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""gym env for simulation."""
+"""Make gym env for simulation."""
 import sys
 import time
 
 import gym
+
 from xt.environment.environment import Environment
-from xt.framework.register import Registers
+from xt.environment.gym import infer_action_type
+from zeus.common.util.register import Registers
 
 
 @Registers.env
 class GymEnv(Environment):
-    """It encapsulates an openai gym environment."""
+    """Encapsulate an openai gym environment."""
 
     def init_env(self, env_info):
         """
-        create a gym environment instance
+        Create a gym environment instance.
 
         :param: the config information of environment
         :return: the instance of environment
         """
         env = gym.make(env_info["name"])
         gym.Wrapper.__init__(self, env)
-        
+
+        self.action_type = infer_action_type(self.action_space)
         self.vision = env_info.get("vision", False)
         self.init_state = None
         return env
 
     def reset(self):
         """
-        reset the environment, if visionis true, must close environment first
+        Reset the environment, if visionis true, must close environment first.
 
         :return: the observation of gym environment
         """
@@ -61,6 +64,7 @@ class GymEnv(Environment):
     def step(self, action, agent_index=0):
         """
         Run one timestep of the environment's dynamics.
+
         Accepts an action and returns a tuple (state, reward, done, info).
 
         :param action: action

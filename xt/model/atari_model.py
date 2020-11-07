@@ -1,8 +1,8 @@
-"""model architecture for atari game"""
+"""Model architecture for atari game."""
 
 
 def get_atari_filter(shape):
-    """get default model set for atari environments"""
+    """Get default model set for atari environments."""
     shape = list(shape)
     # (out_size, kernel, stride)
     filters_84x84 = [

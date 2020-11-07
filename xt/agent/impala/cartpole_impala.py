@@ -15,15 +15,17 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 # WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-"""Cartpole agent for impala algorithm."""
+"""Build Cartpole agent for IMPALA algorithm."""
+
 import numpy as np
 from xt.agent.ppo.cartpole_ppo import CartpolePpo
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 
 @Registers.agent
 class CartpoleImpala(CartpolePpo):
-    """Cartpole Agent with Impala algorithm."""
+    """Build Cartpole Agent with Impala algorithm."""
+
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
         predict_val = self.alg.predict(next_raw_state)
         self.next_action = predict_val[0][0]
@@ -67,7 +69,8 @@ class CartpoleImpala(CartpolePpo):
 
     def run_one_episode(self, use_explore, need_collect):
         """
-        In each episode, do interaction with max steps.
+        Do interaction with max steps in each episode.
+
         :param use_explore:
         :param need_collect: if collect the total transition of each episode.
         :return:

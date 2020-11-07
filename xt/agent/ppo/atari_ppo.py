@@ -17,38 +17,35 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Atari agent for ppo algorithm."""
+"""Build Atari agent for ppo algorithm."""
 
 import numpy as np
 
 from absl import logging
-from xt.agent.ppo.cartpole_ppo import CartpolePpo
-from xt.framework.register import Registers
+from xt.agent.ppo.ppo import PPO
+from xt.agent.ppo.default_config import GAMMA, LAM
+from zeus.common.util.register import Registers
 
 
 @Registers.agent
-class AtariPpo(CartpolePpo):
+class AtariPpo(PPO):
     """Atari Agent with PPO algorithm."""
 
-    def infer_action(self, state, use_explore):
-        """
-        Infer an action with the `state`
-        :param state:
-        :param use_explore:
-        :return: action value
-        """
-        s_t = state.astype('uint8')
-        logging.debug("infer action with state.shape: {}".format(np.shape(s_t)))
-        real_action = super().infer_action(s_t, use_explore)
-
-        return real_action
+    def __init__(self, env, alg, agent_config, **kwargs):
+        super().__init__(env, alg, agent_config, **kwargs)
+        self.keep_seq_len = True
+        self.next_state = None
+        self.next_action = None
+        self.next_value = None
+        self.next_log_p = None
 
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
-        next_state = next_raw_state.astype('uint8')
-        predict_val = self.alg.predict(next_state)
+        self.next_state = next_raw_state
+        predict_val = self.alg.predict(self.next_state)
+
         self.next_action = predict_val[0][0]
-        self.next_value = predict_val[1][0]
-        self.next_state = next_state
+        self.next_log_p = predict_val[1][0]
+        self.next_value = predict_val[2][0]
 
         info.update({'eval_reward': reward})
 
@@ -60,28 +57,3 @@ class AtariPpo(CartpolePpo):
         })
 
         return self.transition_data
-
-    def run_one_episode(self, use_explore, need_collect):
-        """
-        In each episode, do interaction with max steps.
-        :param use_explore:
-        :param need_collect: if collect the total transition of each episode.
-        :return:
-        """
-        # clear the old trajectory data
-        self.clear_trajectory()
-        state = self.env.get_init_state(self.id)
-
-        for _ in range(self.max_step):
-            self.clear_transition()
-            state = self.do_one_interaction(state, use_explore)
-
-            if need_collect:
-                self.add_to_trajectory(self.transition_data)
-
-            if self.transition_data["done"]:
-                self.env.reset()
-                state = self.env.get_init_state(self.id)
-
-        traj = self.get_trajectory()
-        return traj

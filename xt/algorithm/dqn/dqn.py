@@ -17,27 +17,30 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""dqn algorithm."""
+"""Build DQN algorithm."""
+
 import os
 import numpy as np
 
 from xt.algorithm import Algorithm
 from xt.algorithm.dqn.default_config import BUFFER_SIZE, GAMMA, TARGET_UPDATE_FREQ, BATCH_SIZE
 from xt.algorithm.replay_buffer import ReplayBuffer
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 from xt.model import model_builder
-from xt.util.common import import_config
+from zeus.common.util.common import import_config
 
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
 
 @Registers.algorithm
 class DQN(Algorithm):
-    """Deep Q learning algorithm.
-    """
+    """Build Deep Q learning algorithm."""
 
     def __init__(self, model_info, alg_config, **kwargs):
-        """Initialize DQN algorithm. it's contains four steps:
+        """
+        Initialize DQN algorithm.
+
+        It contains four steps:
         1. override the default config, with user's configuration;
         2. create the default actor with Algorithm.__init__;
         3. create once more actor, named by target_actor;
@@ -56,7 +59,8 @@ class DQN(Algorithm):
 
     def train(self, **kwargs):
         """
-        train process for DQN algorithm.
+        Train process for DQN algorithm.
+
         1. predict the newest state with actor & target actor;
         2. calculate TD error;
         3. train operation;
@@ -89,9 +93,11 @@ class DQN(Algorithm):
 
         return loss
 
-    def restore(self, model_name, model_weights=None):
+    def restore(self, model_name=None, model_weights=None):
         """
-        DQN will restore two model weights, actor & target actor
+        Restore model weights.
+
+        DQN will restore two model weights, actor & target.
         :param model_name:
         :param model_weights:
         :return:
@@ -101,7 +107,8 @@ class DQN(Algorithm):
 
     def prepare_data(self, train_data, **kwargs):
         """
-        prepare the train data for dqn,
+        Prepare the train data for DQN.
+
         here, just add once new data into replay buffer.
         :param train_data:
         :return:
@@ -120,7 +127,7 @@ class DQN(Algorithm):
 
     def update_target(self):
         """
-        sync the actor's weight to target.
+        Synchronize the actor's weight to target.
 
         :return:
         """

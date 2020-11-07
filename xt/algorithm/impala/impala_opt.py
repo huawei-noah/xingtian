@@ -17,8 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""optimized impala algorithm with
-merge the data process and inference into tf.graph."""
+"""Bulid optimized impala algorithm by merging the data process and inferencing into tf.graph."""
+
 import os
 import threading
 
@@ -26,16 +26,17 @@ import numpy as np
 
 from xt.algorithm import Algorithm
 from xt.algorithm.impala.default_config import BATCH_SIZE
-from xt.framework.comm.uni_comm import UniComm
-from xt.framework.register import Registers
+from zeus.common.ipc.uni_comm import UniComm
+from zeus.common.util.register import Registers
 from xt.model.tf_compat import loss_to_val
-from xt.util.common import import_config
+from zeus.common.util.common import import_config
 from xt.algorithm.alg_utils import DivideDistPolicy, FIFODistPolicy, EqualDistPolicy
 
 
 @Registers.algorithm
 class IMPALAOpt(Algorithm):
-    """IMPALA algorithm"""
+    """Build IMPALA algorithm."""
+
     def __init__(self, model_info, alg_config, **kwargs):
         import_config(globals(), alg_config)
         super().__init__(alg_name="impala",
@@ -70,7 +71,7 @@ class IMPALAOpt(Algorithm):
             )
 
     def train(self, **kwargs):
-        """train with call tf.sess"""
+        """Train impala agent by calling tf.sess."""
         states = np.concatenate(self.states)
         behavior_logits = np.concatenate(self.behavior_logits)
         actions = np.concatenate(self.actions)
@@ -105,7 +106,7 @@ class IMPALAOpt(Algorithm):
         return np.mean(loss_list)
 
     def save(self, model_path, model_index):
-        """refer to alg"""
+        """Save model."""
         actor_name = "actor" + str(model_index).zfill(5)
         actor_name = self.actor.save_model(os.path.join(model_path, actor_name))
         actor_name = actor_name.split("/")[-1]
@@ -113,7 +114,7 @@ class IMPALAOpt(Algorithm):
         return [actor_name]
 
     def prepare_data(self, train_data, **kwargs):
-        """prepare the data for impala algorithm"""
+        """Prepare the data for impala algorithm."""
         state, logit, action, done, reward = self._data_proc(train_data)
         self.states.append(state)
         self.behavior_logits.append(logit)
@@ -122,14 +123,17 @@ class IMPALAOpt(Algorithm):
         self.rewards.append(reward)
 
     def predict(self, state):
-        """predict with actor inference operation."""
+        """Predict with actor inference operation."""
         pred = self.actor.predict(state)
 
         return pred
 
     @staticmethod
     def _data_proc(episode_data):
-        """data process for impala, agent will record the follows:
+        """
+        Process data for impala.
+
+        Agent will record the follows:
             states, behavior_logits, actions, dones, rewards
         """
         states = episode_data["cur_state"]

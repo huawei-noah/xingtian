@@ -17,18 +17,18 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""tf utils for assign weights between learner and actor.
-And model utils for universal usage.
-"""
+"""Create tf utils for assign weights between learner and actor and model utils for universal usage."""
 
+import os
+import numpy as np
 from collections import OrderedDict, deque
-
 from absl import logging
+
 from xt.model.tf_compat import tf
 
 
 def restore_tf_variable(tf_sess, target_paras, model_name):
-    """restore explorer variable with tf.train.checkpoint"""
+    """Restore explorer variable with tf.train.checkpoint."""
     reader = tf.train.NewCheckpointReader(model_name)
     var_names = reader.get_variable_to_shape_map().keys()
     result = dict()
@@ -46,8 +46,9 @@ def restore_tf_variable(tf_sess, target_paras, model_name):
 
 class TFVariables:
     """Set & Get weights for TF networks with actor's route."""
+
     def __init__(self, output_op, session):
-        """Extracted variables, makeup the TFVariables class."""
+        """Extract variables, makeup the TFVariables class."""
         self.session = session
         if not isinstance(output_op, (list, tuple)):
             output_op = [output_op]
@@ -93,17 +94,23 @@ class TFVariables:
                                                  name="ph_{}".format(node_name))
             self._to_assign_node_dict[node_name] = variable.assign(self._ph[node_name])
 
+        logging.debug("node_hub_with_order: \n{}".format(self.node_hub_with_order.keys()))
+
     def get_weights(self):
-        """get weights with dict type"""
+        """Get weights with dict type."""
         _weights = self.session.run(self.node_hub_with_order)
         return _weights
 
     def set_weights(self, to_weights):
-        """set weights with dict type"""
+        """Set weights with dict type."""
         nodes_to_assign = [
             self._to_assign_node_dict[node_name] for node_name in to_weights.keys()
             if node_name in self._to_assign_node_dict
         ]
+        # unused_nodes = [_node for _node in to_weights.keys()
+        #                 if _node not in self._to_assign_node_dict]
+        # assert not unused_nodes, "weights: {} not assign!".format(unused_nodes)
+
         if not nodes_to_assign:
             raise KeyError("NO node's weights could assign in self.graph")
 
@@ -116,3 +123,41 @@ class TFVariables:
             nodes_to_assign,
             feed_dict=assign_feed_dict,
         )
+
+    def save_weights(self, save_name: str):
+        """Save weights with numpy io."""
+        _weights = self.session.run(self.node_hub_with_order)
+        np.savez(save_name, **_weights)
+
+    @staticmethod
+    def read_weights(weight_file: str):
+        """Read weights with numpy.npz"""
+        np_file = np.load(weight_file)
+        return OrderedDict(**np_file)
+
+    def set_weights_with_npz(self, npz_file: str):
+        """Set weight with numpy file."""
+        weights = self.read_weights(npz_file)
+        self.set_weights(weights)
+
+
+def norm_initializer(std=0.5):
+    """Build customized norm initializer."""
+    def _initializer(shape, dtype=None, partition_info=None):
+        out = np.random.randn(*shape).astype(np.float32)
+        out *= std / np.sqrt(np.square(out).sum(axis=0, keepdims=True))
+        return tf.constant(out)
+
+    return _initializer
+
+
+def gelu(x, name=None):
+    """
+    Implemente OpenAI GPT's gelu activation function.
+
+    See https://arxiv.org/abs/1606.08415 for details.
+    """
+    with tf.name_scope(name, 'GELU', [x]):
+        cdf = 0.5 * (1.0 + tf.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * tf.pow(x, 3))))
+        x = x * cdf
+    return x

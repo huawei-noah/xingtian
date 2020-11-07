@@ -17,9 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""
-Learner module cover the training process within the RL problems.
-"""
+"""Create a module cover the training process within the RL problems."""
+
 import os
 import threading
 from time import time
@@ -27,35 +26,33 @@ from copy import deepcopy
 import numpy as np
 from absl import logging
 from collections import deque
-
-from xt.util.logger import Logger, StatsRecorder
-from xt.util.profile_stats import PredictStats
+from zeus.visual.tensorboarder import SummaryBoard
+from zeus.common.util.evaluate_xt import make_workspace_if_not_exist, parse_benchmark_args
+from xt.environment import env_builder
+from zeus.common.ipc.message import message, get_msg_data, set_msg_info, set_msg_data, get_msg_info
 from xt.framework.trainer import build_alg_with_trainer
-from xt.benchmark.tools.evaluate_xt import (
-    make_workspace_if_not_exist,
-    parse_benchmark_args,
-)
-
-from xt.benchmark.visualize import BenchmarkBoard
-from xt.framework.comm.message import message, get_msg_data, set_msg_info, set_msg_data, get_msg_info
-from xt.util.common import bytes_to_str
-from xt.util.hw_cloud_helper import mox_makedir_if_not_existed, sync_data_to_s3
+from zeus.common.util.common import bytes_to_str
+from zeus.common.util.hw_cloud_helper import mox_makedir_if_not_existed
+from zeus.common.util.logger import Logger, StatsRecorder
+from zeus.common.util.profile_stats import PredictStats, TimerRecorder
 
 
 class Learner(object):
+    """Learner manage the train-processing of whole RL pipe-line."""
+
     def __init__(
             self,
             alg_para,
             env_para,
             agent_para,
-            test_master=None,
+            eval_adapter=None,
             data_url=None,
             benchmark_info=None,
     ):
         self.alg_para = deepcopy(alg_para)
         self.process_num = self.alg_para.get("process_num", 1)
 
-        self.test_master = test_master
+        self.eval_adapter = eval_adapter
 
         self.train_worker = None
 
@@ -76,14 +73,11 @@ class Learner(object):
         self._workspace, _archive, _job = make_workspace_if_not_exist(
             self.bm_args, _model_dir
         )
-        self.bm_board = BenchmarkBoard(_archive, _job)
 
+        self.bm_board = SummaryBoard(_archive, _job)
         self.model_path = os.path.join(self._workspace, _model_dir[0])
-        logging.info(
-            "{} \nworkspace: \n\t{} \n"
-            "model will save under path: \n\t{} \n"
-            "".format("*" * 10, self._workspace, self.model_path)
-        )
+
+        logging.info("{}\nworkspace:\n\t{}\n".format("*" * 10, self._workspace))
 
         self.max_step = agent_para.get("agent_config", {}).get("complete_step")
 
@@ -94,7 +88,7 @@ class Learner(object):
             mox_makedir_if_not_existed(self.s3_path)
 
     def async_predict(self):
-        """ create predict thread """
+        """Create predict thread."""
         predict = [
             PredictThread(
                 i,
@@ -113,7 +107,7 @@ class Learner(object):
             t.start()
 
     def setup_stats_recorder(self):
-        """setup an independent thread to record profiling information."""
+        """Create an independent thread to record profiling information."""
         stats_thread = StatsRecorder(
             msg_deliver=self.stats_deliver,
             bm_args=self.bm_args,
@@ -124,7 +118,7 @@ class Learner(object):
         stats_thread.start()
 
     def init_async_train(self):
-        """ create train worker """
+        """Create train worker."""
         self.train_worker = TrainWorker(
             self.send_train,
             self.alg,
@@ -134,17 +128,17 @@ class Learner(object):
             self.s3_path,
             self.max_step,
             self.stats_deliver,
-            self.test_master,
+            self.eval_adapter,
         )
 
     def submit_algorithm(self, alg_instance, trainer_obj, shared_buff):
-        """submit an algorithm, to update algorithm instance description."""
+        """Submit an algorithm, to update algorithm instance description."""
         self.alg = alg_instance
         self.trainer = trainer_obj
         self.shared_buff = shared_buff
 
     def start(self):
-        """ start all system """
+        """Start all system."""
         alg, trainer_obj, shared_list = build_alg_with_trainer(
             deepcopy(self.alg_para), self.send_broker, self.model_path, self.process_num
         )
@@ -155,7 +149,9 @@ class Learner(object):
         self.setup_stats_recorder()
 
     def main_loop(self):
+        """Run with while True, cover the working loop."""
         self.train_worker.train()
+        # user operation after train process
 
     def __del__(self):
         if self.bm_board:
@@ -163,6 +159,8 @@ class Learner(object):
 
 
 class TrainWorker(object):
+    """TrainWorker Process manage the trajectory data set and optimizer."""
+
     def __init__(
             self,
             train_q,
@@ -173,7 +171,7 @@ class TrainWorker(object):
             s3_path,
             max_step,
             stats_deliver,
-            test_master=None,
+            eval_adapter=None,
     ):
         self.train_q = train_q
         self.alg = alg
@@ -181,6 +179,7 @@ class TrainWorker(object):
         self.model_path = model_path
         self.model_q = model_q
         self.actor_reward = dict()
+        self.actor_trajectory = dict()
         self.rewards = []
         self.s3_path = s3_path
         self.max_step = max_step
@@ -189,32 +188,46 @@ class TrainWorker(object):
         self.train_count = 0
 
         self.stats_deliver = stats_deliver
-        self.test_master = test_master
+        self.e_adapter = eval_adapter
 
         self.logger = Logger(os.path.dirname(model_path))
+        self._metric = TimerRecorder("leaner_model", maxlen=50,
+                                     fields=("fix_weight", "send"))
 
-    def _dist_model(self, dist_model_name=("none", "none"), save_index=-1):
-        """dist model tool"""
+    def _dist_policy(self, weight=None, save_index=-1, dist_cmd="explore"):
+        """Distribute model tool."""
         ctr_info = self.alg.dist_model_policy.get_dist_info(save_index)
 
-        # Not do distribute model with empty list
-        if isinstance(ctr_info, list):
-            for _ctr in ctr_info:
-                to_send_data = message(dist_model_name, cmd="dist_model", **_ctr)
-                self.model_q.send(to_send_data)
-        else:
-            to_send_data = message(dist_model_name, cmd="dist_model", **ctr_info)
+        if isinstance(ctr_info, dict):
+            ctr_info = [ctr_info]
+
+        for _ctr in ctr_info:
+            to_send_data = message(weight, cmd=dist_cmd, **_ctr)
             self.model_q.send(to_send_data)
 
+    def _handle_eval_process(self, loss):
+        if self.e_adapter and self.e_adapter.if_eval(self.train_count):
+            weights = self.alg.get_weights()
+            self.e_adapter.to_eval(weights,
+                                   self.train_count,
+                                   self.actual_step,
+                                   self.logger.elapsed_time,
+                                   self.logger.train_reward,
+                                   loss)
+            eval_ret = self.e_adapter.fetch_eval_result()
+            if eval_ret:
+                logging.debug("eval stats: {}".format(eval_ret))
+                self.stats_deliver.send({"data": eval_ret, "is_bm": True}, block=True)
+
     def train(self):
-        """ train model """
+        """Train model."""
         total_count = 0  # if on the off policy, total count > train count
         save_count = 0
 
         if not self.alg.async_flag:
-            _model = self.alg.save(self.model_path, 0)
-            full_model_name = [os.path.join(self.model_path, i) for i in _model]
-            self._dist_model(dist_model_name=full_model_name)
+            policy_weight = self.alg.get_weights()
+            self._dist_policy(weight=policy_weight)
+
         while True:
             for _tf_val in range(self.alg.prepare_data_times):
                 logging.debug("wait data for preparing-{}...".format(_tf_val))
@@ -224,71 +237,51 @@ class TrainWorker(object):
                     data = bytes_to_str(data)
                     self.record_reward(data)
                     self.alg.prepare_data(data["data"], ctr_info=data["ctr_info"])
-                logging.debug("finished prepare data-{}.".format(_tf_val))
+                logging.debug("Prepared data-{}.".format(_tf_val))
                 # support sync model before
 
             if self.max_step and self.actual_step >= self.max_step:
                 break
 
             total_count += 1
-            if not self.alg.train_ready(total_count, dist_dummy_model=self._dist_model):
+            if not self.alg.train_ready(total_count, dist_dummy_model=self._dist_policy):
                 continue
 
             with self.lock, self.logger.train_timer:
                 logging.debug("start train process-{}.".format(self.train_count))
                 loss = self.alg.train(episode_num=total_count)
+                self.train_count += 1
 
             if type(loss) in (float, np.float64, np.float32, np.float16, np.float):
                 self.logger.record(train_loss=loss)
 
-            self.train_count += 1
-            if self.alg.checkpoint_ready(self.train_count):
-                with self.lock:
-                    if not self.alg.sync_weights:
-                        _model = self.alg.save(self.model_path, save_count)
-                        # fixme: weights to eval
-                        full_model_name = [os.path.join(self.model_path, i) for i in _model]
-                    else:
-                        full_model_name = self.alg.get_weights()
+            # The requirement of distribute model is checkpoint ready.
+            # if self.alg.checkpoint_ready(self.train_count):
+            with self.lock:
+                if self.alg.if_save(self.train_count):
+                    _name = self.alg.save(self.model_path, self.train_count)
+                    # logging.debug("to save model: {}".format(_name))
 
-                    if not self.alg.async_flag:
-                        # logging.debug("put full_model_name: {}".format(full_model_name))
-                        self._dist_model(dist_model_name=full_model_name, save_index=save_count)
+            self._handle_eval_process(loss)
 
-                    # For Cloud
-                    if self.s3_path is not None:
-                        for name in full_model_name:
-                            _model_name = os.path.split(name)[-1]
-                            logging.debug(
-                                "sync model:{} to s3:{}".format(_model_name, self.s3_path)
-                            )
-                            sync_data_to_s3(name, os.path.join(self.s3_path, _model_name))
+            if not self.alg.async_flag and self.alg.checkpoint_ready(
+                    self.train_count):
 
-                save_count += 1
+                _save_t1 = time()
+                policy_weight = self.alg.get_weights()
+                self._metric.append(fix_weight=time() - _save_t1)
 
-                # we only eval saved model
-                # fixme: move evaluate logic inside the evaluator
-                if self.test_master:
-                    self.test_master.call_if_eval(
-                        full_model_name[0],
-                        self.train_count,
-                        self.actual_step,
-                        self.logger.elapsed_time,
-                        self.logger.train_reward,
-                        loss,
-                    )
-                    eval_ret = self.test_master.fetch_eval_result()
-                    if eval_ret:
-                        logging.debug("eval stats: {}".format(eval_ret))
-                        self.stats_deliver.send(
-                            {"data": eval_ret, "is_bm": True}, block=True
-                        )
-                if save_count % 10 == 9:
-                    logging.debug("train count: {}".format(self.train_count))
-                    self.stats_deliver.send(self.logger.get_new_info(), block=True)
+                _dist_st = time()
+                self._dist_policy(policy_weight, save_count)
+                self._metric.append(send=time() - _dist_st)
+                self._metric.report_if_need()
+
+            save_count += 1
+            if save_count % 5 == 1:
+                self.stats_deliver.send(self.logger.get_new_info(), block=True)
 
     def record_reward(self, train_data):
-        """ record reward in train """
+        """Record reward in train."""
         broker_id = get_msg_info(train_data, 'broker_id')
         explorer_id = get_msg_info(train_data, 'explorer_id')
         agent_id = get_msg_info(train_data, 'agent_id')
@@ -320,6 +313,7 @@ class TrainWorker(object):
 
         if key not in self.actor_reward.keys():
             self.actor_reward[key] = 0.0
+            self.actor_trajectory[key] = 0
 
         data_length = len(data_dict["done"])  # fetch the train data length
         for data_index in range(data_length):
@@ -329,6 +323,7 @@ class TrainWorker(object):
             self.actual_step += 1
             if isinstance(info, dict):
                 self.actor_reward[key] += info.get("eval_reward", reward)
+                self.actor_trajectory[key] += 1
                 done = info.get("real_done", done)
 
             if done:
@@ -337,10 +332,17 @@ class TrainWorker(object):
                     train_count=self.train_count,
                     train_reward=self.actor_reward[key],
                 )
+
+                logging.debug("{} epi reward-{}. with len-{}".format(
+                    key, self.actor_reward[key], self.actor_trajectory[key]))
+
                 self.actor_reward[key] = 0.0
+                self.actor_trajectory[key] = 0
 
 
 class PredictThread(object):
+    """Predict Worker for async algorithm."""
+
     def __init__(self, thread_id, alg, request_q, reply_q, stats_deliver, lock):
         self.alg = alg
         self.thread_id = thread_id
@@ -354,7 +356,7 @@ class PredictThread(object):
         self._stats = PredictStats()
 
     def predict(self):
-        """ predict action """
+        """Predict action."""
         while True:
 
             start_t0 = time()
@@ -369,6 +371,8 @@ class PredictThread(object):
 
             set_msg_info(data, cmd="predict_reply")
             set_msg_data(data, action)
+
+            # logging.debug("msg to explore: ", data)
             self.reply_q.send(data)
 
             self._stats.iters += 1
@@ -377,12 +381,24 @@ class PredictThread(object):
                 self.stats_deliver.send(_report, block=True)
 
 
+def patch_model_config_by_env_info(config):
+    model_info = config["model_para"]
+    if "model_config" not in model_info["actor"].keys():
+        model_info["actor"].update({"model_config": dict()})
+    model_config = model_info["actor"]["model_config"]
+
+    env = env_builder(**config["env_para"])
+    env_info = env.get_env_info()
+    model_config.update({"action_type": env_info.get("action_type")})
+    env.close()
+
+    return model_info
+
+
 def patch_alg_within_config(config):
     """combine the algorithm parameters"""
     alg_para = config["alg_para"].copy()
     agent_para = config["agent_para"]
-    model_info = config["model_para"]
-
     node_config = config["node_config"]
 
     # for quickly run 2s_vs_1sc map
@@ -399,7 +415,7 @@ def patch_alg_within_config(config):
 
     if "alg_config" not in alg_para:
         alg_para["alg_config"] = dict()
-        
+
     alg_para["alg_config"].update(
         {
             "instance_num": config["env_num"] * len(node_config),
@@ -407,19 +423,18 @@ def patch_alg_within_config(config):
             "env_attr": env_attr,
         }
     )
-    config.update({"alg_para": alg_para})
 
+    model_info = patch_model_config_by_env_info(config)
     # update env attr into model info
-    if "model_config" not in model_info["actor"].keys():
-        model_info["actor"].update({"model_config": dict()})
     model_info["actor"]["model_config"].update(env_attr)
     alg_para["model_info"] = model_info
+    config.update({"alg_para": alg_para})
 
     return config
 
 
-def setup_learner(config, test_master, data_url=None):
-    """ start learner """
+def setup_learner(config, eval_adapter, data_url=None):
+    """Start learner."""
     env_para = config["env_para"]
     agent_para = config["agent_para"]
     alg_para = deepcopy(config["alg_para"])
@@ -435,7 +450,7 @@ def setup_learner(config, test_master, data_url=None):
         alg_para,
         env_para,
         agent_para,
-        test_master=test_master,
+        eval_adapter=eval_adapter,
         data_url=data_url,
         benchmark_info=bm_info,
     )

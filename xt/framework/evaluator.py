@@ -17,17 +17,19 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""evaluate worker"""
+"""Evaluate worker."""
+
 import sys
 from copy import deepcopy
 from absl import logging
 from xt.framework.agent_group import AgentGroup
-from xt.framework.comm.message import get_msg_data, message, get_msg_info
-from xt.util.printer import print_immediately
+from zeus.common.ipc.message import get_msg_data, message, get_msg_info
+from zeus.common.util.printer import print_immediately
 
 
 class Evaluator(object):
-    """ Evaluator """
+    """Setup an evaluator on local node as default."""
+
     def __init__(self, config_info, broker_id, recv_broker, send_broker):
         self.env_para = deepcopy(config_info.get("env_para"))
         self.alg_para = deepcopy(config_info.get("alg_para"))
@@ -38,28 +40,39 @@ class Evaluator(object):
         self.recv_broker = recv_broker
         self.send_broker = send_broker
 
+        self.best_reward = None
+
     def start(self):
-        """ run evaluator """
+        """Run evaluator."""
         _ag = AgentGroup(self.env_para, self.alg_para, self.agent_para)
         while True:
             recv_data = self.recv_broker.get()
             cmd = get_msg_info(recv_data, "cmd")
-            logging.debug("evaluator get meg: {}".format(recv_data))
+            logging.debug("evaluator get meg: {}".format(type(recv_data)))
             if cmd not in ["eval"]:
+                # print_immediately("eval get un-used data:{}".format(recv_data))
                 continue
 
-            model_name = get_msg_data(recv_data)
+            # print_immediately("recv_data in evaluator: {}".format(
+            #     [v.keys() for v in recv_data["data"].values()]))
 
-            _ag.restore(model_name)  # fixme: load weight 'file' from the disk
-            eval_data = _ag.evaluate(self.bm_eval.get("episodes_per_eval", 1))
+            for train_count, weights in recv_data["data"].items():
 
-            # return each rewards for each agent
-            record_item = tuple([eval_data, model_name])
-            print_immediately("collect eval results: {}".format(record_item))
-            record_item = message(
-                record_item,
-                cmd="eval_result",
-                broker_id=self.broker_id,
-                test_id=self.test_id,
-            )
-            self.send_broker.send(record_item)
+                _ag.restore(weights, is_id=False)
+                eval_data = _ag.evaluate(self.bm_eval.get("episodes_per_eval", 1))
+
+                # return each rewards for each agent
+                record_item = tuple([eval_data,
+                                     {"train_count": train_count,
+                                      "broker_id": self.broker_id,
+                                      "test_id": self.test_id}])
+                print_immediately("collect eval results: {}".format(record_item))
+                record_item = message(
+                    record_item,
+                    cmd="eval_result",
+                    broker_id=self.broker_id,
+                    test_id=self.test_id,
+                )
+                self.send_broker.send(record_item)
+
+            # fixme: save weights with evaluated performance.

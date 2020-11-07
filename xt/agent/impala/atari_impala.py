@@ -20,16 +20,17 @@
 import numpy as np
 
 from xt.agent.impala.cartpole_impala import CartpoleImpala
-from xt.framework.register import Registers
-from xt.framework.comm.message import message, set_msg_info
+from zeus.common.util.register import Registers
+from zeus.common.ipc.message import message, set_msg_info
 
 
 @Registers.agent
 class AtariImpala(CartpoleImpala):
-    """Atari Agent with IMPALA algorithm."""
+    """Build Atari agent with IMPALA algorithm."""
+
     def infer_action(self, state, use_explore):
         state = state.astype('uint8')
-        real_action =super().infer_action(state, use_explore)
+        real_action = super().infer_action(state, use_explore)
 
         return real_action
 

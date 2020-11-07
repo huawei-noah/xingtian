@@ -17,55 +17,46 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-from xt.model.tf_compat import Dense, Input, Model, Adam, tf
-from xt.model.tf_utils import TFVariables
-from xt.model.dqn.default_config import HIDDEN_SIZE, NUM_LAYERS, LR
-from xt.model import XTModel
+from xt.model.model_zeus import XTModelZeus
+
 from zeus.common.util.common import import_config
-
 from zeus.common.util.register import Registers
+from zeus import set_backend, register_zeus
+from zeus.trainer_api import Trainer
+from zeus.common.class_factory import ClassFactory, ClassType
+from zeus.trainer.modules.conf.loss import LossConfig
+from zeus.trainer.modules.conf.optim import OptimConfig
 
+set_backend(backend='tensorflow', device_category='GPU')
+register_zeus('tensorflow')
 
 @Registers.model
-class DqnMlp(XTModel):
+class DqnZeus(XTModelZeus):
     """Docstring for DqnMlp."""
-
     def __init__(self, model_info):
         model_config = model_info.get('model_config', None)
         import_config(globals(), model_config)
-
         self.state_dim = model_info['state_dim']
         self.action_dim = model_info['action_dim']
-        self.learning_rate = LR
+
         super().__init__(model_info)
 
     def create_model(self, model_info):
         """Create Deep-Q network."""
-        state = Input(shape=self.state_dim)
-        denselayer = Dense(HIDDEN_SIZE, activation='relu')(state)
-        for _ in range(NUM_LAYERS - 1):
-            denselayer = Dense(HIDDEN_SIZE, activation='relu')(denselayer)
-        value = Dense(self.action_dim, activation='linear')(denselayer)
-        model = Model(inputs=state, outputs=value)
-        adam = Adam(lr=self.learning_rate)
-        model.compile(loss='mse', optimizer=adam)
+        model_config = model_info['model_config']
+        zeus_model_name = model_config['zeus_model_name']
 
-        self.infer_state = tf.placeholder(tf.float32, name="infer_input",
-                                          shape=(None, ) + tuple(self.state_dim))
-        self.infer_v = model(self.infer_state)
-        self.actor_var = TFVariables([self.infer_v], self.sess)
+        model_cls = ClassFactory.get_cls(ClassType.SEARCH_SPACE, zeus_model_name)
+        zeus_model = model_cls(state_dim=self.state_dim, action_dim=self.action_dim)
+        # zeus_model = DqnMlpNet(state_dim=self.state_dim, action_dim=self.action_dim)
 
-        self.sess.run(tf.initialize_all_variables())
+        LossConfig.type = model_config['loss']
+        OptimConfig.type = model_config['optim']
+        OptimConfig.params.update({'lr': model_config['lr']})
+
+        loss_input = dict()
+        loss_input['inputs'] = [{"name": "input_state", "type": "float32", "shape": self.state_dim}]
+        loss_input['labels'] = [{"name": "target_value", "type": "float32", "shape": self.action_dim}]
+        model = Trainer(model=zeus_model, backend='tensorflow', device='GPU',
+                        loss_input=loss_input, lazy_build=False)
         return model
-
-    def predict(self, state):
-        """
-        Do predict use the newest model.
-
-        :param state:
-        :return:
-        """
-        with self.graph.as_default():
-
-            feed_dict = {self.infer_state: state}
-            return self.sess.run(self.infer_v, feed_dict)

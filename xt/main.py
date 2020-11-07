@@ -18,11 +18,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE
 """
-Main entrance for xingtian library
+DESC: Main entrance for xingtian library.
 
 Usage:
     python main.py -f examples/default_cases/cartpole_ppo.yaml -t train
-
 """
 
 import argparse
@@ -34,20 +33,18 @@ from xt.train import main as xt_train
 from xt.train import makeup_multi_case
 from xt.evaluate import main as xt_eval
 from xt.benchmarking import main as xt_benchmarking
-from xt.benchmark.tools.get_config import parse_xt_multi_case_paras
-from xt.benchmark.tools.get_config import check_if_patch_local_node
-from xt.benchmark.tools.get_config import OPEN_TASKS_SET
-from xt.util.logger import VERBOSITY_MAP
+from zeus.common.util.get_xt_config import parse_xt_multi_case_paras
+from zeus.common.util.get_xt_config import check_if_patch_local_node
+from zeus.common.util.get_xt_config import OPEN_TASKS_SET
+from zeus.common.util.logger import VERBOSITY_MAP
 from xt.framework.remoter import distribute_xt_if_need
-from xt.util.logger import set_logging_format
+from zeus.common.util.logger import set_logging_format
 set_logging_format()
 # logging.set_verbosity(logging.INFO)
 
 
 def main():
-    """
-    :return: config file for training or testing
-    """
+    """:return: config file for training or testing."""
     parser = argparse.ArgumentParser(description="XingTian Usage.")
 
     parser.add_argument(
@@ -111,4 +108,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

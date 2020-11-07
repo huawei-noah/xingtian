@@ -18,7 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """
-implement the impala cnn network with tensorflow.
+Implement the impala cnn network with tensorflow.
+
 The Implement of Vtrace_loss refers to deepmind/scalable_agent.
 https://github.com/deepmind/scalable_agent
 
@@ -35,7 +36,7 @@ import numpy as np
 
 import xt.model.impala.vtrace as vtrace
 from tensorflow.python.util import deprecation
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 from xt.model import XTModel
 from xt.model.impala.default_config import GAMMA, LR
 from xt.model.tf_compat import (
@@ -51,7 +52,7 @@ from xt.model.tf_compat import (
 )
 from xt.model.atari_model import get_atari_filter
 from xt.model.tf_utils import TFVariables, restore_tf_variable
-from xt.util.common import import_config
+from zeus.common.util.common import import_config
 from absl import logging
 
 deprecation._PRINT_DEPRECATION_WARNINGS = False
@@ -59,7 +60,8 @@ deprecation._PRINT_DEPRECATION_WARNINGS = False
 
 @Registers.model
 class ImpalaCnnOpt(XTModel):
-    """docstring for ActorNetwork."""
+    """Docstring for ActorNetwork."""
+
     def __init__(self, model_info):
         model_config = model_info.get("model_config", dict())
         import_config(globals(), model_config)
@@ -96,10 +98,9 @@ class ImpalaCnnOpt(XTModel):
         super().__init__(model_info)
 
     def create_model(self, model_info):
-        self.ph_state = tf.placeholder(tf.int8, shape=(
-            None,
-            *self.state_dim,
-        ), name="state_input")
+        self.ph_state = tf.placeholder(tf.int8,
+                                       shape=(None, *self.state_dim),
+                                       name="state_input")
 
         with tf.variable_scope("explore_agent"):
             state_input = Lambda(lambda x: tf.cast(x, dtype="float32") / 128.0)(self.ph_state)
@@ -213,15 +214,16 @@ class ImpalaCnnOpt(XTModel):
 
         self.sess.run(global_variables_initializer())
 
-        self.explore_paras = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
-                                               scope="explore_agent")
+        self.explore_paras = tf.compat.v1.get_collection(
+            tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
+            scope="explore_agent")
 
         self.saver = Saver({t.name: t for t in self.explore_paras}, max_to_keep=self.max_to_keep)
 
         return True
 
     def _get_lr(self, global_step, decay_step=20000.):
-        """make decay learning rate"""
+        """Make decay learning rate."""
         lr_schedule = self.lr_schedule
         if len(lr_schedule) != 2:
             logging.warning("Need 2 elements in lr_schedule!\n, "
@@ -233,13 +235,12 @@ class ImpalaCnnOpt(XTModel):
 
         learning_rate = linear_cosine_decay(lr_schedule[0][1],
                                             global_step, decay_step,
-                                            beta=lr_schedule[1][1]/float(decay_step))
+                                            beta=lr_schedule[1][1] / float(decay_step))
 
         return learning_rate
 
     def train(self, state, label):
-        """train with sess.run"""
-
+        """Train with sess.run."""
         bp_logic_outs, actions, dones, rewards = label
         with self.graph.as_default():
             _, loss = self.sess.run(
@@ -256,10 +257,10 @@ class ImpalaCnnOpt(XTModel):
 
     def predict(self, state):
         """
-        action_logits, action_val, value
         Do predict use the newest model.
-        :param state:
-        :return:
+
+        :param: state
+        :return: action_logits, action_val, value
         """
         with self.graph.as_default():
             feed_dict = {self.ph_state: state}
@@ -267,32 +268,32 @@ class ImpalaCnnOpt(XTModel):
                                  feed_dict)
 
     def save_model(self, file_name):
-        """save model without meta graph"""
+        """Save model without meta graph."""
         ck_name = self.saver.save(self.sess, save_path=file_name, write_meta_graph=False)
         return ck_name
 
     def load_model(self, model_name, by_name=False):
-        """load model with inference variables."""
+        """Load model with inference variables."""
         restore_tf_variable(self.sess, self.explore_paras, model_name)
 
     def set_weights(self, weights):
-        """set weight with memory tensor"""
+        """Set weight with memory tensor."""
         with self.graph.as_default():
             self.actor_var.set_weights(weights)
 
     def get_weights(self):
-        """get weights"""
+        """Get weights."""
         with self.graph.as_default():
             return self.actor_var.get_weights()
 
 
 def calc_baseline_loss(advantages):
-    """calculate the baseline loss."""
+    """Calculate the baseline loss."""
     return 0.5 * tf.reduce_sum(tf.square(advantages))
 
 
 def calc_entropy_loss(logic_outs):
-    """calculate entropy loss"""
+    """Calculate entropy loss."""
     pi = tf.nn.softmax(logic_outs)
     log_pi = tf.nn.log_softmax(logic_outs)
     entropy_per_step = tf.reduce_sum(-pi * log_pi, axis=-1)
@@ -300,7 +301,7 @@ def calc_entropy_loss(logic_outs):
 
 
 def calc_pi_loss(logic_outs, actions, advantages):
-    """calculate policy gradient loss"""
+    """Calculate policy gradient loss."""
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
         labels=actions, logits=logic_outs)
     advantages = tf.stop_gradient(advantages)
@@ -312,7 +313,8 @@ def vtrace_loss(
         bp_logic_outs, tp_logic_outs, actions,
         discounts, rewards, values, bootstrap_value):
     """
-    vtrace loss for impala algorithm.
+    Compute vtrace loss for impala algorithm.
+
     :param bp_logic_outs: behaviour_policy_logic_outputs
     :param tp_logic_outs: target_policy_logic_outputs
     :param actions:
@@ -341,7 +343,7 @@ def vtrace_loss(
 
 
 def custom_norm_initializer(std=0.5):
-    """custom norm initializer for op"""
+    """Customize norm initializer for op."""
     def _initializer(shape, dtype=None, partition_info=None):
         out = np.random.randn(*shape).astype(np.float32)
         out *= std / np.sqrt(np.square(out).sum(axis=0, keepdims=True))

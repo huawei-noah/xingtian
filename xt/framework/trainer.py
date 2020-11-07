@@ -14,8 +14,7 @@ os.environ["KERAS_BACKEND"] = "tensorflow"
 
 
 def build_alg_with_trainer(alg_para, model_q, model_path, process_num):
-    """build a algorithm instance with multi-process trainer
-    """
+    """Build an algorithm instance with multi-process trainer."""
     alg_para = deepcopy(alg_para)
     if process_num >= 2:
         shared_list_for_train = Manager().list()
@@ -31,7 +30,7 @@ def build_alg_with_trainer(alg_para, model_q, model_path, process_num):
 
 
 def start_multi_processes(alg_para, model_q, model_path, process_num, train_list):
-    """start multi processes to train"""
+    """Start multi processes to train."""
     array_list = init_memory(process_num)
     event_dict = {}
     grad_q = Queue()
@@ -59,7 +58,7 @@ def start_multi_processes(alg_para, model_q, model_path, process_num, train_list
 
 
 def train_main(alg, array_list, weight_list, process_num, model_q, model_path, event_dict, grad_q):
-    """main process"""
+    """Create main process."""
     train_count = 0
     save_count = 0
 
@@ -103,7 +102,7 @@ def train_main(alg, array_list, weight_list, process_num, model_q, model_path, e
 
 
 def grad_communicate(alg_para, id_, array_list, weight_list, train_list, event_dict, grad_q):
-    """subprocess"""
+    """Create subprocess."""
     os.environ["CUDA_VISIBLE_DEVICES"] = str(id_ % 4)
     print("start ", id_)
 
@@ -133,12 +132,12 @@ def grad_communicate(alg_para, id_, array_list, weight_list, train_list, event_d
             grad = alg.get_grad()
             put_list_to_memory(grad, memory_grad, length, shape)
 
-            #grad_state[id_].value = 1
+            # grad_state[id_].value = 1
             grad_q.put(id_)
 
 
 def init_memory(process_num):
-    """init shared memory"""
+    """Initilize shared memory."""
     array_list = []
     for i in range(process_num):
         array_list.append(RawArray('d', 100000000))
@@ -182,7 +181,8 @@ def get_shape_and_length(array):
 
 
 class TrainRecord(object):
-    """record and output reward"""
+    """Record and output reward."""
+
     def __init__(self, trainer_id):
         self.rewards = []
         self.actor_reward = dict()

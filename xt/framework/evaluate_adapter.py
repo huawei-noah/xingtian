@@ -24,13 +24,13 @@ from copy import deepcopy
 from queue import Queue, Empty
 from absl import logging
 import numpy as np
-from xt.framework.comm.message import message, get_msg_data
-from xt.benchmark.configs.default_xt import XtBenchmarkConf as XBConf
-from xt.util.printer import print_immediately
+from zeus.common.ipc.message import message, get_msg_data
+from zeus.common.util.default_xt import XtBenchmarkConf as XBConf
 
 
 class TesterManager(object):
-    """ manage evaluate data """
+    """Manage evaluate data."""
+
     def __init__(self, config_info, broker_master, s3_result_path=None):
         self.config_info = config_info
         self.s3_path = s3_result_path
@@ -44,32 +44,31 @@ class TesterManager(object):
 
         self.eval_info_queue = Queue()
 
-        self.used_node = dict()
-        self.avail_node = []
-
         eval_info = self.config_info.get("benchmark", {}).get("eval", dict())
         self.max_instance = eval_info.get("evaluator_num", 2)
         self.eval_interval = eval_info.get(
             "gap", XBConf.default_train_interval_per_eval)
         self.max_step_per_episode = eval_info.get(
-                "max_step_per_episode", 18000)
+            "max_step_per_episode", 18000)
 
-        for i in range(broker_master.node_num):
-            for test_id in range(self.max_instance):
-                key = (i, "test" + str(test_id))
-                self.avail_node.append(key)
+        self.used_node = dict()
+        self.avail_node = list(((i, "test{}".format(tid))
+                                for i in range(broker_master.node_num)
+                                for tid in range(self.max_instance)))
 
         self.last_eval_index = -9999
 
     def check_finish_stat(self, target_model_count):
-        """check finish status"""
+        """Check finish status."""
         return self.processed_model_count >= target_model_count
 
-    def call_if_eval(self, model_name, train_count, actual_step,
-                     elapsed_time, train_reward, train_loss):
+    def if_eval(self, train_count):
         if train_count - self.last_eval_index < self.eval_interval:
             return False
+        return True
 
+    def to_eval(self, weights, train_count, actual_step,
+                elapsed_time, train_reward, train_loss):
         # update current evaluate index
         self.last_eval_index = train_count
 
@@ -83,12 +82,13 @@ class TesterManager(object):
         if type(train_loss) in (float, np.float64, np.float32, np.float16, np.float):
             train_info.update({"loss": train_loss})
 
-        self.record_station_buf.update({model_name: train_info})
+        self.record_station_buf.update({train_count: train_info})
 
-        self.put_test_model([model_name])
+        self.put_test_model({train_count: weights})
+        # return self.get_avail_node()
 
     def fetch_eval_result(self):
-        """fetch eval results with no wait."""
+        """Fetch eval results with no wait."""
         ret = list()
         while True:
             try:
@@ -98,14 +98,14 @@ class TesterManager(object):
                 break
         return ret
 
-    def __parse_eval_result_and_archive(self, eval_result):
-        _model_name = eval_result[-1][0]  # model receive is a list
+    def _parse_eval_result_and_archive(self, eval_result):
+        _model_index = eval_result[-1]["train_count"]  # model receive is a list
         # fixme: only a model been test in an agent.
         _agent_id = list(eval_result[0].keys())[0]
 
         # find the eval model info, and update the eval reward
-        if _model_name in self.record_station_buf:
-            eval_info_dict = self.record_station_buf.pop(_model_name)
+        if _model_index in self.record_station_buf:
+            eval_info_dict = self.record_station_buf.pop(_model_index)
         else:
             eval_info_dict = dict()
             print("-->", eval_result)
@@ -114,7 +114,7 @@ class TesterManager(object):
             {
                 "agent_id": _agent_id,
                 "eval_reward": np.nanmean(eval_result[0][_agent_id]["reward"]),
-                "model_name": _model_name,
+                "eval_name": _model_index,
             }
         )
         # custom evaluate
@@ -127,25 +127,30 @@ class TesterManager(object):
         self.eval_info_queue.put(eval_info_dict)
 
     def recv_result(self):
-        """ recieve test result """
+        """Recieve test result."""
         while True:
             recv_data = self.recv_broker.recv()
             result_data = get_msg_data(recv_data)
             self.processed_model_count += 1
+            logging.debug("result_data: \n{}".format(result_data))
 
-            self.__parse_eval_result_and_archive(result_data)
+            _meta = result_data[1]
+            self.used_node[(_meta["broker_id"], _meta["test_id"])] -= 1
 
-    def put_test_model(self, model_name):
-        """ send test model """
+            self._parse_eval_result_and_archive(result_data)
+
+    def put_test_model(self, model_weights):
+        """Send test model."""
         key = self.get_avail_node()
         ctr_info = {"cmd": "eval", "broker_id": key[0], "test_id": key[1]}
-        eval_cmd = message(model_name, **ctr_info)
+
+        eval_cmd = message(model_weights, **ctr_info)
         self.send_broker.send(eval_cmd)
-        logging.debug("put evaluate model: {}".format(model_name))
+        logging.debug("put evaluate model: {}".format(type(model_weights)))
         self.used_node[key] += 1
 
-    def create_evaluator(self, broker_id, test_id):
-        """ create evaluator """
+    def send_create_evaluator_msg(self, broker_id, test_id):
+        """Create evaluator."""
         config = deepcopy(self.config_info)
         config.update({"test_id": test_id})
 
@@ -153,16 +158,17 @@ class TesterManager(object):
         self.send_broker.send(create_cmd)
 
     def get_avail_node(self):
-        """ get available test nod """
+        """Get available test node."""
         if self.used_node:
             min_key = min(self.used_node, key=self.used_node.get)
-            if self.used_node.get(min_key) == 0 or len(self.avail_node) == 0:
+            if self.used_node.get(min_key) < 1 or not self.avail_node:
                 return min_key
 
         # create new evaluator
         new_key = self.avail_node.pop(0)
-        self.create_evaluator(*new_key)
+        self.send_create_evaluator_msg(*new_key)  # (broker_id, test_id)
         self.used_node.update({new_key: 0})
+        logging.info("create evaluator: {}".format(new_key))
         return new_key
 
     def start(self):

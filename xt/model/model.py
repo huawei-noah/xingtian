@@ -17,9 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""
-model base
-"""
+"""Model base."""
+
 import os
 import glob
 from xt.model.tf_compat import tf, K
@@ -31,11 +30,15 @@ os.environ["KERAS_BACKEND"] = "tensorflow"
 class XTModel(object):
     """
     Model Base class for model module.
+
     Owing to the same name to Keras.Model, set `XTModel` as the base class.
     User could inherit the XTModel, to implement their model.
     """
+
     def __init__(self, model_info):
         """
+        Initialize XingTian Model.
+
         To avoid the compatibility problems about tensorflow's versions.
         Model class will hold their graph&session within itself.
         Now, we used the keras's API to create models.
@@ -43,10 +46,13 @@ class XTModel(object):
         """
         self.graph = tf.Graph()
 
+        # User Could assign it within create model.
+        self.actor_var = None
+
         with self.graph.as_default():
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
-            sess = tf.Session(config=config)
+            sess = tf.compat.v1.Session(config=config)
             self.sess = sess
             K.set_session(self.sess)
             self.model_format = model_info.get('model_format')
@@ -61,12 +67,13 @@ class XTModel(object):
                     print("load weight: {} failed!".format(model_name))
 
     def create_model(self, model_info):
-        """abstract method for creating model"""
+        """Abstract method for creating model."""
         raise NotImplementedError
 
     def predict(self, state):
         """
         Do predict use the newest model.
+
         :param state:
         :return:
         """
@@ -75,23 +82,21 @@ class XTModel(object):
             return self.model.predict(state)
 
     def train(self, state, label):
-        """train the model"""
+        """Train the model."""
         with self.graph.as_default():
             K.set_session(self.sess)
             loss = self.model.train_on_batch(state, label)
             return loss
 
-    def get_weights(self):
-        """return the weights of the model"""
-        with self.graph.as_default():
-            K.set_session(self.sess)
-            return self.model.get_weights()
-
     def set_weights(self, weights):
-        """set the new weights"""
+        """Set weight with memory tensor."""
         with self.graph.as_default():
-            K.set_session(self.sess)
-            self.model.set_weights(weights)
+            self.actor_var.set_weights(weights)
+
+    def get_weights(self):
+        """Get the weights."""
+        with self.graph.as_default():
+            return self.actor_var.get_weights()
 
     def get_grad(self, data):
         with self.graph.as_default():
@@ -99,21 +104,23 @@ class XTModel(object):
             self.model.get_grad(data)
 
     def save_model(self, file_name):
-        """save weights into .h5 file"""
+        """Save weights into .h5 file."""
         # check max model file to keep
         check_keep_model(os.path.dirname(file_name), self.max_to_keep)
 
-        with self.graph.as_default():
-            K.set_session(self.sess)
-            self.model.save_weights(file_name + ".h5", overwrite=True)
+        self.actor_var.save_weights(file_name + ".npz")
+
         if self.model_format == 'pb':
             pb_model(self.model, file_name)
-        return file_name + ".h5"
+        return file_name + ".npz"
 
-    def load_model(self, model_name, by_name=False):
-        with self.graph.as_default():
-            K.set_session(self.sess)
-            self.model.load_weights(model_name, by_name)
+    def load_model(self, model_name):
+        if self.actor_var:
+            self.actor_var.set_weights_with_npz(model_name)
+        else:
+            with self.graph.as_default():
+                K.set_session(self.sess)
+                self.model.load_weights(model_name, by_name=True)
 
 
 def check_keep_model(model_path, keep_num):

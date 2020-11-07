@@ -17,9 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE
-"""
-xingtian train entrance.
-"""
+"""DESC: Xingtian train entrance."""
+
 import os
 import signal
 import sys
@@ -35,22 +34,21 @@ from xt.evaluate import setup_evaluate_adapter
 from xt.framework.broker_launcher import launch_broker
 from xt.framework.learner import setup_learner, patch_alg_within_config
 from xt.framework.explorer import setup_explorer
-from xt.util.common import get_config_file
-from xt.benchmark.tools.get_config import parse_xt_multi_case_paras, \
+from zeus.common.util.common import get_config_file
+from zeus.common.util.get_xt_config import parse_xt_multi_case_paras, \
     check_if_patch_local_node
 
 TRAIN_PROCESS_LIST = list()
 
 
 def _makeup_learner(config_info, data_url, verbosity):
-    """make up a learner instance, and build the relation with broker"""
-
+    """Make up a learner instance and build the relation with broker."""
     config_info = patch_alg_within_config(config_info.copy())
 
     _exp_params = pprint.pformat(config_info, indent=0, width=1,)
     logging.info("init learner with:\n{}\n".format(_exp_params))
 
-    broker_master = launch_broker(config_info)
+    broker_master = launch_broker(config_info, verbosity=verbosity)
     eval_adapter = setup_evaluate_adapter(config_info, broker_master, verbosity)
 
     # fixme: split the relation between learner and tester
@@ -72,8 +70,7 @@ def _makeup_learner(config_info, data_url, verbosity):
 
 def start_train(config_file, train_task,
                 data_url=None, try_times=5, verbosity="info"):
-    """ start train"""
-
+    """Start training."""
     with open(config_file) as f:
         config_info = yaml.safe_load(f)
 
@@ -93,8 +90,7 @@ def start_train(config_file, train_task,
 
 
 def handle_multi_case(sig, frame):
-    """ Catch <ctrl+c> signal for clean stop """
-
+    """Catch <ctrl+c> signal for clean stop."""
     global TRAIN_PROCESS_LIST
     for p in TRAIN_PROCESS_LIST:
         p.send_signal(signal.SIGINT)
@@ -104,7 +100,7 @@ def handle_multi_case(sig, frame):
 
 
 def main(config_file, train_task, s3_path=None, verbosity="info"):
-    """do train task with single case """
+    """Do train task with single case."""
     broker_master = start_train(config_file, train_task,
                                 data_url=s3_path, verbosity=verbosity)
     loop_is_end = False
@@ -131,13 +127,13 @@ def main(config_file, train_task, s3_path=None, verbosity="info"):
 
 # train with multi case
 def write_conf_file(config_folder, config):
-    """ write config to file """
+    """Write config to file."""
     with open(config_folder, "w") as f:
         yaml.dump(config, f)
 
 
 def makeup_multi_case(config_file, s3_path):
-    """ run multi case """
+    """Run multi cases."""
     signal.signal(signal.SIGINT, handle_multi_case)
     # fixme: setup with archive path
     if os.path.isdir("log") is False:
@@ -172,7 +168,7 @@ def makeup_multi_case(config_file, s3_path):
 
 
 def launch_train_with_shell(abs_config_file, s3_path=None, stdout2file="./xt.log"):
-    """ run train process """
+    """Run train process."""
     cmd = "import xt; from xt.train import main; main('{}', {})".format(
         abs_config_file, s3_path
     )

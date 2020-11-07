@@ -21,14 +21,16 @@ import tensorflow as tf
 from xt.model.tf_compat import Conv2D, Dense, Flatten, Input, Model, Adam, Lambda, K
 from xt.model.dqn.default_config import LR
 from xt.model import XTModel
-from xt.util.common import import_config
+from xt.model.tf_utils import TFVariables
+from zeus.common.util.common import import_config
 
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 
 @Registers.model
 class DqnCnn(XTModel):
-    """docstring for ."""
+    """Docstring for DqnCnn."""
+
     def __init__(self, model_info):
         model_config = model_info.get('model_config', None)
         import_config(globals(), model_config)
@@ -39,7 +41,7 @@ class DqnCnn(XTModel):
         super().__init__(model_info)
 
     def create_model(self, model_info):
-        """method for creating DQN CNN network"""
+        """Create Deep-Q CNN network."""
         state = Input(shape=self.state_dim, dtype="uint8")
         state1 = Lambda(lambda x: K.cast(x, dtype='float32') / 255.)(state)
         convlayer = Conv2D(32, (8, 8), strides=(4, 4), activation='relu', padding='valid')(state1)
@@ -57,12 +59,15 @@ class DqnCnn(XTModel):
         self.infer_state = tf.placeholder(tf.uint8, name="infer_input",
                                           shape=(None, ) + tuple(self.state_dim))
         self.infer_v = model(self.infer_state)
+        self.actor_var = TFVariables([self.infer_v], self.sess)
+
         self.sess.run(tf.initialize_all_variables())
         return model
 
     def predict(self, state):
         """
         Do predict use the newest model.
+
         :param state:
         :return:
         """
