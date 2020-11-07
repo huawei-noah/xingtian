@@ -9,7 +9,7 @@ from datetime import datetime
 
 
 def get_bm_fix_path(bm_info, key_seq, last_path=None):
-    """get model path of benchmark yaml."""
+    """Get model path of benchmark yaml."""
     _bm_path_seq = [bm_info[_key] for _key in key_seq]
     if last_path:
         _bm_path_seq += [last_path]
@@ -19,7 +19,7 @@ def get_bm_fix_path(bm_info, key_seq, last_path=None):
 
 
 def assemble_config_file(config_info, total_steps):
-    """add timestamp into benchmark id"""
+    """Add timestamp into benchmark id."""
     target_info = config_info.copy()
     _bm = config_info["benchmark"]
     target_info["benchmark"].update({"id": "+".join([

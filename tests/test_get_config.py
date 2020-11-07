@@ -1,6 +1,6 @@
 import sys
 
-from xt.benchmark.tools.get_config import *
+from zeus.common.util.get_xt_config import *
 
 
 def test_main():

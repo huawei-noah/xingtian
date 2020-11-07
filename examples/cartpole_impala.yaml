@@ -26,4 +26,4 @@ model_para:
     state_dim: [4]
     action_dim: 2
 
-env_num: 5
+env_num: 10

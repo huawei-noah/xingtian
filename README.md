@@ -6,7 +6,7 @@
 
 [中文](./README.cn.md)
 
-## Introduction 
+## Introduction
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -20,7 +20,7 @@ sudo apt-get install python3-pip libopencv-dev redis-server -y
 pip3 install opencv-python
 
 # run with tensorflow 1.15.0
-pip3 install zmq h5py gym[atari] tqdm imageio matplotlib==3.0.3 Ipython pyyaml tensorflow==1.15.0 pyarrow lz4 fabric2 line_profiler redis absl-py psutil 
+pip3 install zmq h5py gym[atari] tqdm imageio matplotlib==3.0.3 Ipython pyyaml tensorflow==1.15.0 pyarrow lz4 fabric2 line_profiler redis absl-py psutil
 ```
 
 or, using `pip3 install -r requirements.txt`
@@ -32,11 +32,11 @@ If your want to used PyTorch as the backend, please install it by yourself.  [Re
 
 ## Installation
 ```zsh
-# cd PATH/TO/XingTian 
+# cd PATH/TO/XingTian
 pip3 install -e .
 ```
 
-After installation, you could use `import xt; print(xt.__Version__)`  to check whether the installation is successful. 
+After installation, you could use `import xt; print(xt.__Version__)`  to check whether the installation is successful.
 
 ```python
 In [1]: import xt
@@ -51,8 +51,8 @@ Out[2]: '0.1.1'
 
 ---------
 #### Setup configuration
-Follow's configuration shows a minimal example with [Cartpole](https://gym.openai.com/envs/CartPole-v0/) environment. 
-More detailed description with the parameters of agent, algorithm and environment could been find in the [User guide](./docs/user.en.md) . 
+Follow's configuration shows a minimal example with [Cartpole](https://gym.openai.com/envs/CartPole-v0/) environment.
+More detailed description with the parameters of agent, algorithm and environment could been find in the [User guide](./docs/user.en.md) .
 
 
 ```yaml
@@ -145,14 +145,14 @@ xt_main -f examples/cartpole_ppo.yaml -t train
 | QBert         | 111                | 90              |
 | SpaceInvaders | 115                | 100             |
 
-2. **PPO** 
+2. **PPO**
 
 | env           | XingTian PPO | RLlib PPO |
 | ------------- | ------------ | --------- |
-| BeamRider     | 1775         | 1618      |
-| Breakout      | 1801         | 1535      |
-| QBert         | 1741         | 1617      |
-| SpaceInvaders | 1858         | 1608      |
+| BeamRider     | 1994         | 1618      |
+| Breakout      | 2033         | 1535      |
+| QBert         | 2086         | 1617      |
+| SpaceInvaders | 2037         | 1608      |
 
 > Experiment condition： 72  Intel(R) Xeon(R) Gold 6154 CPU @ 3.00GHz with single Tesla V100
 
@@ -163,4 +163,3 @@ XingTian refers to the following projects: [DeepMind/scalable_agent](https://git
 ## License
 
 The MIT License(MIT)
-

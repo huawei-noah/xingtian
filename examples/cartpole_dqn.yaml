@@ -3,6 +3,8 @@ alg_para:
   alg_config: {
     'prepare_times_per_train': 4,
     'learning_starts': 100,
+    'save_model': True,
+    'save_interval': 100
     }
 
 env_para:

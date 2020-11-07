@@ -25,7 +25,7 @@ Algorithm 模块的工作目录为`xt/algorithm`。
 
 ```python
 from xt.algorithm import Algorithm
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 
 @Registers.algorithm
@@ -47,7 +47,7 @@ Model 模块用于定义深度网络的架构，以执行网络的推理和训�
 
 ```python
 import torch
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 # Pytorch 
 @Registers.model
@@ -76,7 +76,7 @@ class NewTFModel(XTModel):
 Agent 模块负责算法与环境的交互逻辑，并整合multiagent中不同trajectory的数据，其工作目录为`xt/Agent`。一般情况下，开发者只需继承Agent基类，并实现`infer_action` 和`handle_env_feedback` 两个接口即可。
 
 ```python
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 from xt.agent import Agent
 
 @Registers.agent
@@ -101,7 +101,7 @@ Environment 模块封装不同环境的差异性，提供兼容`Gym` 的API形�
 
 ```python
 from xt.environment.environment import Environment
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 
 @Registers.env
