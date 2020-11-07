@@ -42,7 +42,7 @@ After installation, you could use `import xt; print(xt.__Version__)`  to check w
 In [1]: import xt
 
 In [2]: xt.__version__
-Out[2]: '0.1.1'
+Out[2]: '0.2.0'
 ```
 
 
