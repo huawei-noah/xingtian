@@ -21,16 +21,17 @@ import os
 import numpy as np
 
 from xt.algorithm.impala.default_config import BATCH_SIZE, GAMMA
-from xt.util.common import import_config
+from zeus.common.util.common import import_config
 from xt.algorithm import Algorithm
 from xt.model.tf_compat import loss_to_val
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 from xt.algorithm.alg_utils import DivideDistPolicy, FIFODistPolicy, EqualDistPolicy
 
 
 @Registers.algorithm
 class IMPALA(Algorithm):
-    """IMPALA algorithm"""
+    """Build IMPALA algorithm."""
+
     def __init__(self, model_info, alg_config, **kwargs):
         import_config(globals(), alg_config)
         super().__init__(
@@ -59,7 +60,7 @@ class IMPALA(Algorithm):
         self.rewards = list()
 
     def train(self, **kwargs):
-        """refer to alg"""
+        """Train agent."""
         state, pg_adv, target_value, action_matrix = self._train_proc()
 
         nbatch = len(state)
@@ -83,7 +84,7 @@ class IMPALA(Algorithm):
         return np.mean(loss_list)
 
     def save(self, model_path, model_index):
-        """refer to alg"""
+        """Save model."""
         actor_name = "actor" + str(model_index).zfill(5)
         actor_name = self.actor.save_model(os.path.join(model_path, actor_name))
         actor_name = actor_name.split("/")[-1]
@@ -91,7 +92,7 @@ class IMPALA(Algorithm):
         return [actor_name]
 
     def prepare_data(self, train_data, **kwargs):
-        """prepare the data for impala algorithm"""
+        """Prepare the data for impala algorithm."""
         states, actions, dones, pred_a, rewards = self._data_proc(train_data)
 
         self.state.append(states)
@@ -101,7 +102,7 @@ class IMPALA(Algorithm):
         self.rewards.append(rewards)
 
     def predict(self, state):
-        """refer to alg"""
+        """Predict with actor inference operation."""
         state = state.reshape((1,) + state.shape)
         dummp_value = np.zeros((1, 1))
         pred = self.actor.predict([state, dummp_value])
@@ -109,7 +110,7 @@ class IMPALA(Algorithm):
         return pred
 
     def _data_proc(self, episode_data):
-        """data process for impala"""
+        """Process data for impala."""
         states = episode_data["cur_state"]
         actions = episode_data["real_action"]
         rewards = np.asarray(episode_data["reward"])
@@ -119,7 +120,6 @@ class IMPALA(Algorithm):
         pred_a = np.asarray(episode_data["action"])
 
         return (states, actions, dones, pred_a, rewards)
-
 
     def _train_proc(self):
         states = np.concatenate(self.state)
@@ -131,39 +131,39 @@ class IMPALA(Algorithm):
         outputs = self.actor.predict([states, np.zeros((states.shape[0], 1))])
         probs = outputs[0]
         values = outputs[1]
-        
+
         state_len = self.episode_len + 1
-        shape = (probs.shape[0]//state_len, state_len, probs.shape[1])
+        shape = (probs.shape[0] // state_len, state_len, probs.shape[1])
         probs = probs.reshape(shape)
-        shape = (values.shape[0]//state_len, state_len, values.shape[1])
+        shape = (values.shape[0] // state_len, state_len, values.shape[1])
         values = values.reshape(shape)
-        shape = (dones.shape[0]//self.episode_len, self.episode_len, dones.shape[1])
+        shape = (dones.shape[0] // self.episode_len, self.episode_len, dones.shape[1])
         dones = dones.reshape(shape)
         rewards = rewards.reshape(shape)
-        shape = (actions.shape[0]//self.episode_len, self.episode_len, ) + actions.shape[1:]
+        shape = (actions.shape[0] // self.episode_len, self.episode_len, ) + actions.shape[1:]
         actions = actions.reshape(shape)
         pred_a = pred_a.reshape(shape)
 
-        value = values[:,:-1]
-        value_next = values[:,1:]
-        target_action = probs[:,:-1]
+        value = values[:, :-1]
+        value_next = values[:, 1:]
+        target_action = probs[:, :-1]
         discounts = ~dones * GAMMA
 
         behaviour_logp = self._logp(pred_a, actions)
         target_logp = self._logp(target_action, actions)
         radio = np.exp(target_logp - behaviour_logp)
         radio = np.minimum(radio, 1.0)
-        radio = radio.reshape(radio.shape +(1,))
+        radio = radio.reshape(radio.shape + (1,))
         deltas = radio * (rewards + discounts * value_next - value)
 
         adv = deltas
         traj_len = adv.shape[1]
         for j in range(traj_len - 2, -1, -1):
-            adv[:,j] += adv[:,j + 1] * discounts[:,j + 1] * radio[:,j + 1]
+            adv[:, j] += adv[:, j + 1] * discounts[:, j + 1] * radio[:, j + 1]
 
         target_value = value + adv
-        target_value_next = target_value[:,1:]
-        last_value = value_next[:,-1]
+        target_value_next = target_value[:, 1:]
+        last_value = value_next[:, -1]
         last_value = last_value.reshape((last_value.shape[0], 1, last_value.shape[1]))
         target_value_next = np.concatenate((target_value_next, last_value), axis=1)
         pg_adv = radio * (rewards + discounts * target_value_next - value)
@@ -172,9 +172,9 @@ class IMPALA(Algorithm):
         pg_adv = pg_adv.reshape(shape)
         target_value = target_value.reshape(shape)
 
-        shape = (states.shape[0]//state_len, state_len, ) + states.shape[1:]
+        shape = (states.shape[0] // state_len, state_len, ) + states.shape[1:]
         states = states.reshape(shape)
-        states = states[:,:-1]
+        states = states[:, :-1]
         shape = (states.shape[0] * states.shape[1], ) + states.shape[2:]
         states = states.reshape(shape)
 
@@ -185,6 +185,6 @@ class IMPALA(Algorithm):
 
     @staticmethod
     def _logp(prob, action):
-        """to be filled"""
+        """Calculate log probabiliy of an action."""
         action_prob = np.sum(prob * action, axis=-1)
         return np.log(action_prob + 1e-10)

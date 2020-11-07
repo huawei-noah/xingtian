@@ -22,20 +22,21 @@ from collections import deque
 
 
 class ReplayBuffer(object):
-    """ReplayBuffer class"""
+    """Build ReplayBuffer class."""
+
     def __init__(self, buffer_size):
         self.buffer = deque(maxlen=buffer_size)
 
     def get_batch(self, batch_size):
-        """sample batch_size examples"""
+        """Sample batch_size examples."""
         sample_size = min(self.size(), batch_size)
 
         return random.sample(self.buffer, int(sample_size))
 
     def size(self):
-        """get buffer size"""
+        """Get buffer size."""
         return len(self.buffer)
 
     def add(self, train_data):
-        """put data to buffer"""
+        """Put data to buffer."""
         self.buffer.append(train_data)

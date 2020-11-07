@@ -17,7 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-""" Algorithm base class"""
+"""Build Algorithm base class."""
+
 import os
 import numpy as np
 
@@ -31,7 +32,9 @@ ZFILL_LENGTH = 5
 
 
 class Algorithm(object):
-    """The base class for Algorithm.
+    """
+    Build base class for Algorithm.
+
     These must contains more than one model.
     """
 
@@ -40,7 +43,8 @@ class Algorithm(object):
 
     def __init__(self, alg_name, model_info, alg_config=None, **kwargs):
         """
-        use the model info create a algorithm
+        Use the model info to create a algorithm.
+
         :param alg_name:
         :param model_info: model_info["actor"]
         :param alg_config:
@@ -58,7 +62,6 @@ class Algorithm(object):
 
         # trainable state
         self._train_ready = True
-        self.sync_weights = False
 
         # train property
         self._prepare_times_per_train = alg_config.get(
@@ -73,39 +76,58 @@ class Algorithm(object):
         self._train_per_checkpoint = alg_config.get("train_per_checkpoint", 1)
         logging.debug("train/checkpoint: {}".format(self.train_per_checkpoint))
 
+        self.if_save_model = alg_config.get("save_model", False)
+        self.save_interval = alg_config.get("save_interval", 500)
+
+    def if_save(self, train_count):
+        if not self.if_save_model:
+            return False
+        if train_count % self.save_interval == 0:
+            return True
+
     @staticmethod
     def update_weights_map(agent_in_group="agent_0", agent_in_env="agent_0"):
-        """Setup custom weights map on there.
+        """
+        Set custom weights map on there.
+
         e.g.
             {"agent_id": {"prefix": "actor", "name":"YOUR/PATH/TO/MODEL/FILE.h5"}}
             firstly, find the prefix,
             second, find name of the model file.
 
             All the agents will share an same model as default.
+
         Note:
+        ----
             If user need update the map Dynamically,
             Call this function after train process within the `self.train()`
         """
         return {}
 
     def prepare_data(self, train_data, **kwargs):
-        """ prepare the data for train function, contains:
-        1) put training data to queue/buff,
-        2) processing the data for user's special train operation
+        """
+        Prepare the data for train function.
+
+        Contains:
+            1) put training data to queue/buff,
+            2) processing the data for user's special train operation
         Each new algorithm must implement this function.
         """
         raise NotImplementedError
 
     @property
     def prepare_data_times(self):
-        """unify the prepare data time for each train operation."""
+        """Unify the prepare data time for each train operation."""
         return self._prepare_times_per_train
 
     def predict(self, state):
-        """The api will call the keras.model.predict as default,
-        if the inputs is different from the normal state,
-        You need overwrite this function."""
+        """
+        Predict action.
 
+        The api will call the keras.model.predict as default,
+        if the inputs is different from the normal state,
+        You need overwrite this function.
+        """
         inputs = state.reshape((1, ) + state.shape)
         out = self.actor.predict(inputs)
 
@@ -114,6 +136,7 @@ class Algorithm(object):
     def train_ready(self, total_count, **kwargs):
         """
         Support custom train logic.
+
         :return: train ready flag
         """
         # we set train ready as default
@@ -125,13 +148,15 @@ class Algorithm(object):
         return self._train_ready
 
     def train(self, **kwargs):
-        """The train process.
+        """
+        Train algorithm.
+
         Each new algorithm must implement this function.
         """
         raise NotImplementedError
 
     def checkpoint_ready(self, train_count, **kwargs):
-        """support custom checkpoint logic after training."""
+        """Support custom checkpoint logic after training."""
         self._train_ready = False
         if train_count % self.train_per_checkpoint == 0:
             return True
@@ -149,6 +174,7 @@ class Algorithm(object):
     def save(self, model_path, model_index):
         """
         Save api call `keras.model.save_model` function to save model weight.
+
         To support save multi model within the algorithm,
             eg. [actor_00xx1.h5, critic_00xx2.h5]
         return name used a list type
@@ -162,12 +188,15 @@ class Algorithm(object):
         return [model_name]
 
     def restore(self, model_name=None, model_weights=None):
-        """restore the model with the priority: model_weight > model_name.
-        owing to actor.set_weights would be faster than load model from disk.
+        """
+        Restore the model with the priority: model_weight > model_name.
+
+        Owing to actor.set_weights would be faster than load model from disk.
 
         if user used multi model in one algorithm,
         they need overwrite this function.
-        impala will use weights, not model name"""
+        impala will use weights, not model name
+        """
         if model_weights is not None:
             self.actor.set_weights(model_weights)
         else:
@@ -175,13 +204,11 @@ class Algorithm(object):
             self.actor.load_model(model_name)
 
     def get_weights(self):
-        """get the actor model weights as default
-        """
+        """Get the actor model weights as default."""
         return self.actor.get_weights()
 
     def set_weights(self, weights):
-        """set the actor model weights as default
-        """
+        """Set the actor model weights as default."""
         return self.actor.set_weights(weights)
 
     @property
@@ -191,9 +218,14 @@ class Algorithm(object):
     @weights_map.setter
     def weights_map(self, map_info):
         """
-        set weights map,
+        Set weights map.
+
         Here, User also could set some policy for the weight map
         :param map_info:
         :return:
         """
         self._weights_map = map_info
+
+    def shutdown(self):
+        """Shutdown algorithm."""
+        pass

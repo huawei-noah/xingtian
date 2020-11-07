@@ -17,17 +17,18 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Environment base class, User could inherit it."""
+"""Make Environment base class, User could inherit it."""
+
 from __future__ import division, print_function
 
 
 class Environment(object):
-    """
-     environment basic class
-    """
+    """Make environment basic class."""
 
     def __init__(self, env_info, **kwargs):
         """
+        Initialize environment.
+
         :param env_info: the config info of environment
         """
         # default agent number is one, multi_agent environment must assign this value
@@ -36,6 +37,7 @@ class Environment(object):
         # 1) standalone, each agent could do interaction with their environment
         # 2) unified, Agents within group do interaction with environment in one step.
         self.api_type = "standalone"
+        self.action_type = None
 
         self.env = self.init_env(env_info)
         self.id = kwargs.get("env_id", 0)
@@ -43,7 +45,8 @@ class Environment(object):
 
     def init_env(self, env_info):
         """
-        create an environment instance
+        Create an environment instance.
+
         # NOTE: User must assign the `api_type` value on multi_agent.
         :param: the config information of environment
         :return: the instance of environment
@@ -52,7 +55,7 @@ class Environment(object):
 
     def reset(self):
         """
-        reset the environment.
+        Reset the environment.
 
         :return: the observation of environment
         """
@@ -63,7 +66,7 @@ class Environment(object):
 
     def step(self, action, agent_index=0):
         """
-        send action  to running agent in this environment.
+        Send action  to running agent in this environment.
 
         :param action: action
         :param agent_index: the index of agent
@@ -73,7 +76,7 @@ class Environment(object):
 
     def get_init_state(self, agent_index=0):
         """
-        get reset observation of one agent.
+        Get reset observation of one agent.
 
         :param agent_index: the index of agent
         :return: the reset observation of agent
@@ -82,7 +85,7 @@ class Environment(object):
 
     def stop_agent(self, agent_index):
         """
-        stop one agent running.
+        Stop one agent running.
 
         :param agent_index: the index of agent
         :return:
@@ -90,11 +93,12 @@ class Environment(object):
         return self.env.stop_agent(agent_index)
 
     def get_env_info(self):
-        """return environment's basic information"""
+        """Return environment's basic information."""
         self.reset()
         env_info = {
             "n_agents": self.n_agents,
             "api_type": self.api_type,
+            "action_type": self.action_type
         }
         # update the agent ids, will used in the weights map.
         # default work well with the sumo multi-agents
@@ -104,9 +108,7 @@ class Environment(object):
         return env_info
 
     def close(self):
-        """
-        close environment
-        """
+        """Close environment."""
         try:  # do some thing you need
             self.env.close()
         except AttributeError:

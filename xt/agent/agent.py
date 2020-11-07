@@ -18,22 +18,22 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """
-Agent module.
-contains all the interaction operations between algorithm and environment.
+DESC: Agent module contains all the interaction operations between algorithm and environment.
+
 User could implement the infer_action and handle_env_feedback functions.
 """
+from collections import defaultdict
 from copy import deepcopy
 from time import time
-from collections import defaultdict
 
 import numpy as np
 
-from xt.framework.comm.message import message, set_msg_info
-from xt.util.profile_stats import AgentStats
+from zeus.common.ipc.message import message, set_msg_info
+from zeus.common.util.profile_stats import AgentStats
 
 
 class Agent(object):
-    """Agent Base."""
+    """Build Agent Base."""
 
     def __init__(self, env, alg, agent_config, recv_explorer, send_explorer, **kwargs):
         self.env = env
@@ -50,6 +50,9 @@ class Agent(object):
         self.infer_if_remote = False
         self.alive = True
         self.keep_seq_len = False
+
+        self.sync_weights_count = 0
+        self.broadcast_weights_interval = 1
 
         self._stats = AgentStats()
 
@@ -69,8 +72,10 @@ class Agent(object):
             self.trajectory[k].append(val)
 
     def infer_action(self, state, use_explore):
-        """infer an action with the new state.
-        And, user could convert the state into special model's input on there.
+        """
+        Infer an action with the new state.
+
+        User could convert the state into special model's input on there.
 
         :param state:
         :param use_explore:
@@ -88,8 +93,10 @@ class Agent(object):
         raise NotImplementedError
 
     def do_one_interaction(self, raw_state, use_explore=True):
-        """Use the Agent do once interaction.
-        User could re-write the infer_action and handle_env_feedback functions
+        """
+        Use the Agent do one interaction.
+
+        User could re-write the infer_action and handle_env_feedback functions.
         :param raw_state:
         :param use_explore:
         :return:
@@ -114,7 +121,8 @@ class Agent(object):
 
     def run_one_episode(self, use_explore, need_collect):
         """
-        In each episode, do interaction with max steps.
+        Do interaction with max steps in each episode.
+
         :param use_explore:
         :param need_collect: if collect the total transition of each episode.
         :return:
@@ -135,28 +143,29 @@ class Agent(object):
             if self.transition_data["done"]:
                 if not self.keep_seq_len:
                     break
-
                 self.env.reset()
                 state = self.env.get_init_state()
 
         return self.get_trajectory()
 
     def sum_trajectory_reward(self):
-        """return the sum of trajectory reward"""
+        """Return the sum of trajectory reward."""
         return {self.id: np.sum(self.trajectory["reward"])}
 
     def calc_custom_evaluate(self):
-        """Do some custom evaluate process on the whole trajectory
-        of current episode. User could overwrite this function to
-        set special evaluate.
-        return a dictionary contains all the key:values by user defined.
+        """
+        Do some custom evaluate process on the whole trajectory of current episode.
+
+        User could overwrite this function to set special evaluate.
+        Return a dictionary contains all the key:values by user defined.
         """
         return {self.id: {"custom_criteria": 0.0}}
 
     @staticmethod
     def post_process(agents):
         """
-        Do some operates after all agent run a episode, which within the agent group
+        Do some operations after all agents run an episode, which within the agent group.
+
         :param agents:
         :return:
         """
@@ -165,6 +174,7 @@ class Agent(object):
     def reset(self):
         """
         Do nothing in the base Agent.
+
         User could do the special reset operation on their agent.
         :return:
         """
@@ -177,19 +187,20 @@ class Agent(object):
     @id.setter
     def id(self, agent_id):
         """
-        set agent id
+        Set agent id.
+
         :param agent_id:
         :return:
         """
         self._id = agent_id
 
     def sync_model(self):
-        """fetch model from broker."""
+        """Fetch model from broker."""
         model_name = self.recv_explorer.recv()
         return model_name
 
     def get_perf_stats(self):
-        """get status after run once episode"""
+        """Get status after run once episode."""
         _stats_info = self._stats.get()
 
         mean_reward = getattr(self, "get_explore_mean_reward", None)

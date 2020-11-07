@@ -17,9 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""
-save model in pb file format.
-"""
+"""Save model in pb file format."""
 
 import os
 import tensorflow as tf
@@ -29,7 +27,8 @@ from xt.model.tf_compat import K
 
 def pb_model(h5_model, file_name, out_prefix="output_"):
     """
-    Describe: output model in pb file
+    Output model in pb file.
+
     :param h5_model:
     :param file_name:
     :param out_prefix:

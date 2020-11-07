@@ -17,32 +17,33 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""
-xingtian evaluate entrance.
-"""
+"""DESC: Xingtian evaluate entrance."""
+
 import sys
 import glob
 import os
 import time
-
+import re
 import yaml
+import numpy as np
+from collections import OrderedDict
 from absl import logging
 from xt.framework.broker_launcher import launch_broker
 
 from xt.framework.evaluate_adapter import TesterManager
 from xt.framework.learner import patch_alg_within_config
-from xt.util.common import get_config_file
-from xt.benchmark.tools.get_config import check_if_patch_local_node
+from zeus.common.util.common import get_config_file
+from zeus.common.util.get_xt_config import check_if_patch_local_node
 
-from xt.util.hw_cloud_helper import sync_data_from_s3
-from xt.util.hw_cloud_helper import XT_HWC_WORKSPACE
+from zeus.common.util.hw_cloud_helper import sync_data_from_s3
+from zeus.common.util.hw_cloud_helper import XT_HWC_WORKSPACE
 
 
 TEST_MODEL_GAP = 5
 
 
 def setup_evaluate_adapter(config, broker_master, s3_result_path=None):
-    """ start test """
+    """Start test."""
     if "test_node_config" in config:
         manager = TesterManager(config, broker_master, s3_result_path)
         manager.start()
@@ -52,7 +53,7 @@ def setup_evaluate_adapter(config, broker_master, s3_result_path=None):
 
 
 def main(config_file, s3_result_path=None):
-    """The entrance for evaluate model. """
+    """DESC: the entrance for evaluate model."""
     with open(config_file) as f:
         config = yaml.safe_load(f)
         config = check_if_patch_local_node(config, "evaluate")
@@ -88,8 +89,10 @@ def main(config_file, s3_result_path=None):
     if os.path.isfile(model_path):
         test_model.append(model_path)
     elif os.path.isdir(model_path):
-        _total_model_list = list(glob.glob(os.path.join(model_path, "*.h5")))
-        _total_model_list.sort(reverse=True)
+        _total_model_list = list(glob.glob(os.path.join(model_path, "actor_*")))
+        _total_model_list.sort(
+            reverse=True,
+            key=lambda x: int(str(os.path.splitext(os.path.basename(x))[0]).split("_")[-1]))
         test_model.extend(
             [
                 _model
@@ -107,7 +110,12 @@ def main(config_file, s3_result_path=None):
     loop_is_end = False
     try:
         for model_name in test_model:
-            tester_manager.put_test_model([model_name])
+            np_file = np.load(model_name)
+            ordered_weights = OrderedDict(**np_file)
+
+            pattern = re.compile(r'(?<=actor_)\d+')
+            train_index = int(pattern.findall(model_name)[0])
+            tester_manager.put_test_model({train_index: ordered_weights})
 
         while True:
             time.sleep(3)

@@ -23,16 +23,18 @@ import threading
 from copy import deepcopy
 from absl import logging
 
+from zeus.common.ipc.share_buffer import ShareBuf
 from xt.framework.agent_group import AgentGroup
-from xt.framework.comm.uni_comm import UniComm
-from xt.framework.comm.message import message, get_msg_info, get_msg_data, set_msg_info
-from xt.util.logger import set_logging_format
+from zeus.common.ipc.uni_comm import UniComm
+from zeus.common.ipc.message import message, get_msg_info, get_msg_data, set_msg_info
+from zeus.common.util.logger import set_logging_format
 
 set_logging_format()
 
 
 class Explorer(object):
-    """ explorer is used to explore environment to generate train data """
+    """Create an explorer to explore environment to generate train data."""
+
     def __init__(self, config_info, broker_id, recv_broker, send_broker):
         self.env_para = deepcopy(config_info.get("env_para"))
         self.alg_para = deepcopy(config_info.get("alg_para"))
@@ -45,13 +47,20 @@ class Explorer(object):
         self.broker_id = broker_id
         self.rl_agent = None
 
-        logging.debug("init explorer with id: {}".format(self.explorer_id))
+        self._buf_path = config_info["share_path"]
+        self._buf = ShareBuf(live=10, path=self._buf_path)  # live para is dummy
+
+        logging.debug("init explorer with id: {}, buf_path: {}".format(
+            self.explorer_id, self._buf_path))
 
     def start_explore(self):
-        """ start explore process """
+        """Start explore process."""
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         os.environ["CUDA_VISIBLE_DEVICES"] = str(-1)
         explored_times = 0
+
+        report_stats_interval = 20
+        last_report_index = -999
         try:
             self.rl_agent = AgentGroup(
                 self.env_para,
@@ -59,20 +68,29 @@ class Explorer(object):
                 self.agent_para,
                 self.send_agent,
                 self.recv_agent,
+                self._buf
             )
             explore_time = self.agent_para.get("agent_config", {}).get("sync_model_interval", 1)
             logging.info("AgentGroup start to explore with sync interval-{}".format(explore_time))
 
             while True:
-                self.rl_agent.explore(explore_time)
+                stats = self.rl_agent.explore(explore_time)
                 explored_times += explore_time
-                logging.debug("end explore-{}".format(explored_times))
+
+                if self.explorer_id < 1:
+                    logging.debug("explore-{} ran {} times".format(self.explorer_id, explored_times))
+
+                if explored_times - last_report_index > report_stats_interval:
+                    stats_msg = message(stats, cmd="stats_msg")
+                    self.recv_agent.send(stats_msg)
+                    last_report_index = explored_times
+
         except BaseException as ex:
             logging.exception(ex)
             os._exit(4)
 
     def start_data_transfer(self):
-        """ start transfer data and other thread """
+        """Start transfer data and other thread."""
         data_transfer_thread = threading.Thread(target=self.transfer_to_broker)
         data_transfer_thread.start()
 
@@ -80,12 +98,12 @@ class Explorer(object):
         data_transfer_thread.start()
 
     def transfer_to_agent(self):
-        """ send train data to learner """
+        """Send train data to learner."""
         while True:
             data = self.recv_broker.get()
             cmd = get_msg_info(data, "cmd")
             if cmd == "close":
-                print("enter explore close")
+                logging.debug("enter explore close")
                 self.close()
                 continue
 
@@ -93,17 +111,19 @@ class Explorer(object):
             self.send_agent.send(data)
 
     def transfer_to_broker(self):
-        """ send train data to learner """
+        """Send train data to learner."""
         while True:
             data = self.recv_agent.recv()
 
-            set_msg_info(data, broker_id=self.broker_id,
-                         explorer_id=self.explorer_id)
+            info_cmd = get_msg_info(data, "cmd")
+            # print("info_cmd in explorer: ", info_cmd, data)
+            data_type = "buf_reduce" if info_cmd == "buf_reduce" else "data"
+            set_msg_info(data, broker_id=self.broker_id, explorer_id=self.explorer_id)
 
-            self.send_broker.send(data)
+            self.send_broker.send(data, data_type=data_type)
 
     def start(self):
-        """ start actor's thread and process """
+        """Start actor's thread and process."""
         self.start_data_transfer()
         self.start_explore()
 

@@ -18,35 +18,27 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """
-manage remote node. contains:
-0. distribute xingtian wheel to remote node
-1. setup broker slave
-2. distribute model file to remote node for explore.
+Manage remote node.
+
+Contains:
+    0. distribute xingtian wheel to remote node;
+    1. setup broker slave;
+    2. distribute model file to remote node for explore.
 """
 import os
-import socket
 import glob
+import shutil
+from time import sleep
 import subprocess
 from absl import logging
 from fabric2 import Connection
+from zeus.common.util.common import get_host_ip
+
 # logging.set_verbosity(logging.DEBUG)
 
 
-def get_host_ip():
-    """ get local ip address """
-
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-
-    return ip
-
-
 def remote_run(server_ip, host, passwd, cmd, remote_env):
-    """ run command in remote node """
+    """Run command in remote node."""
     print("remote_env:", remote_env)
     _env_export = "export PATH={}/bin:$PATH".format(remote_env["conda"])
     if "env" in remote_env.keys():
@@ -70,7 +62,8 @@ def __check_both_env_are_local(env_config_list, local_ip_set):
 
 def dist_model(src_model, node_info, remote_path="xt_archive"):
     """
-    distribute model to remote node
+    Distribute model to remote node.
+
     :param src_model:
     :param node_info:
     :param remote_path:
@@ -104,14 +97,23 @@ def dist_model(src_model, node_info, remote_path="xt_archive"):
 
 def _package_xt(default_dist_path="./dist"):
     """
-    package as wheel with `python3 setup.py bdist_wheel`
+    Make package as wheel with `python3 setup.py bdist_wheel.
+
     :param default_dist_path:
     :return:
     """
+    # # remove old zeus
+    # if os.path.exists("zeus"):
+    #     shutil.rmtree("zeus")
+
+    if not os.path.exists("zeus"):
+        shutil.copytree("../zeus", "zeus", ignore=shutil.ignore_patterns('*.pyc'))
+        sleep(0.05)
 
     _cmd = "python3 setup.py bdist_wheel --universal"
     try:
-        subprocess.call([_cmd], shell=True, stdout=subprocess.PIPE)
+        subprocess.call([_cmd], shell=True,  # stdout=subprocess.PIPE
+                        )
     except subprocess.CalledProcessError as err:
         logging.fatal("catch err: {} when package into wheel".format(err))
 
@@ -120,7 +122,8 @@ def _package_xt(default_dist_path="./dist"):
 
 def distribute_xt_if_need(config, remote_env, remote_path="xt_archive"):
     """
-    distribute xingtian sourcecode among use's node configure.
+    Distribute Xingtian sourcecode among use's node configure.
+
     :param config: config instance from config.yaml
     :param remote_env: remote conda environment path
     :param remote_path: path to store the wheel file. 'xt_archive' default.
@@ -154,20 +157,7 @@ def distribute_xt_if_need(config, remote_env, remote_path="xt_archive"):
         with Connection(
                 _ip, user=_user, connect_kwargs={"password": _password}
         ) as connect:
-            _workspace = os.path.join("/home", _user, remote_path)
-            try:
-                rt = connect.run(
-                    command="ls {} | grep {}".format(
-                        os.path.dirname(_workspace), remote_path
-                    ),
-                    pty=False,
-                )
-
-                connect.run(command="mkdir {}".format(_workspace), pty=False)
-            except BaseException as err:
-                print("try create: {}, get: {}".format(_workspace, err))
-                pass
-
+            _workspace = os.path.join("/tmp")
             target_whl = glob.glob("{}/xingtian*.whl".format(dist_path))
             logging.info("found dist: {}".format(target_whl))
             for _whl in target_whl:

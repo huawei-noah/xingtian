@@ -17,19 +17,20 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""CartPole agent for dqn algorithm"""
+"""Build CartPole agent for dqn algorithm."""
+
 import random
 import numpy as np
 
 from xt.agent import Agent
 
-from xt.framework.register import Registers
-from xt.framework.comm.message import message
+from zeus.common.util.register import Registers
+from zeus.common.ipc.message import message
 
 
 @Registers.agent
 class CartpoleDqn(Agent):
-    """Cartpole Agent with dqn algorithm."""
+    """Build Cartpole Agent with DQN algorithm."""
 
     def __init__(self, env, alg, agent_config, **kwargs):
         super(CartpoleDqn, self).__init__(env, alg, agent_config, **kwargs)
@@ -38,12 +39,12 @@ class CartpoleDqn(Agent):
 
     def infer_action(self, state, use_explore):
         """
-        Infer an action with the `state`
+        Infer an action with `state`.
+
         :param state:
         :param use_explore: Used True, in train, False in evaluate
         :return: action value
         """
-
         # if explore action
         if use_explore and random.random() < self.epsilon:
             action = np.random.randint(0, self.alg.action_dim)
@@ -62,13 +63,12 @@ class CartpoleDqn(Agent):
 
         # update transition data
         self.transition_data.update(
-            {"cur_state": state, "action": action,}
+            {"cur_state": state, "action": action}
         )
 
         return action
 
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
-
         self.transition_data.update({
             "next_state": next_raw_state,
             "reward": np.sign(reward) if use_explore else reward,
@@ -85,4 +85,4 @@ class CartpoleDqn(Agent):
         return self.transition_data
 
     def sync_model(self):
-        return ("none")
+        return None

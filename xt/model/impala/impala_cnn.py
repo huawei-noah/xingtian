@@ -17,19 +17,22 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+"""IMPALA model."""
 import tensorflow as tf
 from xt.model.tf_compat import Dense, Input, Conv2D, \
     Model, Adam, Lambda, Flatten, K
 
+from xt.model.tf_utils import TFVariables
 from xt.model.impala.default_config import ENTROPY_LOSS, LR
 from xt.model import XTModel
-from xt.util.common import import_config
-from xt.framework.register import Registers
+from zeus.common.util.common import import_config
+from zeus.common.util.register import Registers
 
 
 @Registers.model
 class ImpalaCnn(XTModel):
-    """model for ImpalaNetworkCnn"""
+    """Create model for ImpalaNetworkCnn."""
+
     def __init__(self, model_info):
         model_config = model_info.get('model_config', None)
         import_config(globals(), model_config)
@@ -62,6 +65,9 @@ class ImpalaCnn(XTModel):
                                           shape=(None,) + tuple(self.state_dim))
         self.adv = tf.placeholder(tf.float32, name="adv", shape=(None, 1))
         self.infer_p, self.infer_v = model([self.infer_state, self.adv])
+
+        self.actor_var = TFVariables([self.infer_p, self.infer_v], self.sess)
+
         self.sess.run(tf.initialize_all_variables())
 
         return model
@@ -71,30 +77,27 @@ class ImpalaCnn(XTModel):
             # print(type(state[2][0][0]))
             K.set_session(self.sess)
             loss = self.model.fit(x={'state_input': state[0], 'adv': state[1]},
-                                  y={
-                                      "output_actions": label[0],
-                                      "output_value": label[1]
-                                  },
+                                  y={"output_actions": label[0],
+                                     "output_value": label[1]},
                                   batch_size=128,
                                   verbose=0)
             return loss
 
     def predict(self, state):
-        """
-        Do predict use the latest model.
-        """
+        """Do predict use the latest model."""
         with self.graph.as_default():
             K.set_session(self.sess)
             feed_dict = {self.infer_state: state[0], self.adv: state[1]}
             return self.sess.run([self.infer_p, self.infer_v], feed_dict)
 
+
 def layer_function(x):
-    """ normalize data """
+    """Normalize data."""
     return K.cast(x, dtype='float32') / 255.
 
 
 def impala_loss(advantage):
-    """loss for impala"""
+    """Compute loss for impala."""
     def loss(y_true, y_pred):
         policy = y_pred
         log_policy = K.log(policy + 1e-10)

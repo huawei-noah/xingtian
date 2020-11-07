@@ -17,7 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""dist model policy"""
+"""Build general utils for algorithm."""
+
 from absl import logging
 from collections import deque, defaultdict
 
@@ -43,7 +44,20 @@ class DivideDistPolicy(DefaultAlgDistPolicy):
         return self.default_policy
 
 
+def _fetch_broker_info(ctr_relation_buf: defaultdict):
+    """Fetch broker information."""
+    ctr_list = list()
+    default_policy = {"broker_id": -1, "explorer_id": -1}
+    for _broker, _explorer in ctr_relation_buf.items():
+        default_policy.update(
+            {"broker_id": _broker, "explorer_id": list(_explorer)})
+        ctr_list.append(default_policy.copy())
+
+    return ctr_list
+
+
 class FIFODistPolicy(DefaultAlgDistPolicy):
+    """DESC: distribute to which had submitted explore data."""
     def __init__(self, actor_num, prepare_times, **kwargs):
         super(FIFODistPolicy, self).__init__(actor_num, **kwargs)
         self._processed_agent = deque()
@@ -56,22 +70,22 @@ class FIFODistPolicy(DefaultAlgDistPolicy):
         if model_index < 0:
             return self.default_policy
 
-        ctr_list = list()
+        ctr_relation_buf = defaultdict(set)
         for _i in range(len(self._processed_agent)):
             try:
                 _info = self._processed_agent.popleft()
                 # key = (broker_id, explorer_id, agent_id)
-                self.default_policy.update(
-                    {"broker_id": _info[0], "explorer_id": _info[1]})
-                ctr_list.append(self.default_policy.copy())
+
+                ctr_relation_buf[_info[0]].update((_info[1],))
             except IndexError:
                 logging.ERROR("without data in FIFODistPolicy.deque, used last!")
 
-        return ctr_list
+        return _fetch_broker_info(ctr_relation_buf)
 
 
 class EqualDistPolicy(DefaultAlgDistPolicy):
-    """distribute to which had submitted explore data"""
+    """DESC: distribute to which had submitted explore data."""
+
     def __init__(self, actor_num, prepare_times, **kwargs):
         super(EqualDistPolicy, self).__init__(actor_num, **kwargs)
         self._processed_agent = defaultdict(int)
@@ -84,12 +98,10 @@ class EqualDistPolicy(DefaultAlgDistPolicy):
         if model_index < 0:
             return self.default_policy
 
-        ctr_list = list()
+        ctr_relation_buf = defaultdict(set)
         for _id, _val in self._processed_agent.items():
             if _val >= self.prepare_data_times:  # fixme: check threshold
                 self._processed_agent[_id] -= self.prepare_data_times
-                self.default_policy.update(
-                    {"broker_id": _id[0], "explorer_id": _id[1]})
-                ctr_list.append(self.default_policy.copy())
+                ctr_relation_buf[_id[0]].update((_id[1],))
 
-        return ctr_list
+        return _fetch_broker_info(ctr_relation_buf)

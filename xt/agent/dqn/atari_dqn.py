@@ -17,17 +17,20 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""atari agent for dqn algorithm"""
+"""Build Atari agent for dqn algorithm."""
+
 from xt.agent.dqn.cartpole_dqn import CartpoleDqn
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 
 @Registers.agent
 class AtariDqn(CartpoleDqn):
-    """Atari Agent with dqn algorithm."""
+    """Build Atari agent with dqn algorithm."""
+
     def infer_action(self, state, use_explore):
         """
-        Infer an action with the `state`
+        Infer an action with `state`.
+
         :param state:
         :param use_explore:
         :return: action value

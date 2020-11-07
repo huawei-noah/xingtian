@@ -17,29 +17,34 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-import tensorflow as tf
-from xt.framework.register import Registers
-from xt.model.tf_compat import Dense, Input, Model
-from xt.model.ppo.ppo_cnn import PpoCnn
-from xt.model.ppo.default_config import HIDDEN_SIZE, NUM_LAYERS
+
+from xt.model import ACTIVATION_MAP
+from xt.model.mlp_model import get_mlp_backbone, get_mlp_default_settings
+from xt.model.ppo.default_config import MLP_SHARE_LAYERS
+from xt.model.ppo.ppo import PPO
+from xt.model.tf_compat import tf
+from zeus.common.util.register import Registers
 
 
 @Registers.model
-class PpoMlp(PpoCnn):
+class PpoMlp(PPO):
+    """Build PPO MLP network."""
+
+    def __init__(self, model_info):
+        model_config = model_info.get('model_config')
+
+        self.vf_share_layers = model_config.get('VF_SHARE_LAYERS', MLP_SHARE_LAYERS)
+        self.hidden_sizes = model_config.get('hidden_sizes', get_mlp_default_settings('hidden_sizes'))
+        activation = model_config.get('activation', get_mlp_default_settings('activation'))
+        try:
+            self.activation = ACTIVATION_MAP[activation]
+        except KeyError:
+            raise KeyError('activation {} not implemented.'.format(activation))
+
+        super().__init__(model_info)
+
     def create_model(self, model_info):
-        state_input = Input(shape=self.state_dim, name='state_input')
-        advantage = Input(shape=(1, ), name='adv')
-        old_prediction = Input(shape=(self.action_dim, ), name='old_p')
-        old_value = Input(shape=(1, ), name='old_v')
-
-        denselayer = Dense(HIDDEN_SIZE, activation='relu')(state_input)
-        for _ in range(NUM_LAYERS - 1):
-            denselayer = Dense(HIDDEN_SIZE, activation='relu')(denselayer)
-        out_actions = Dense(self.action_dim, activation='softmax', name='output_actions')(denselayer)
-        out_value = Dense(1, name='output_value')(denselayer)
-        model = Model(inputs=[state_input], outputs=[out_actions, out_value])
-        if model_info.get("summary"):
-            model.summary()
-
+        model = get_mlp_backbone(self.state_dim, self.action_dim, self.hidden_sizes, self.activation,
+                                 self.vf_share_layers, self.verbose)
         self.build_graph(tf.float32, model)
         return model

@@ -17,9 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""
-make available with multi version tensorflow.
-"""
+"""Make available with multi version tensorflow."""
+
 import os
 import tensorflow as tf
 if "TF_CPP_MIN_LOG_LEVEL" not in os.environ:
@@ -30,7 +29,7 @@ if tf.__version__ in ("1.15.0", "2.0.0"):
     from tensorflow.compat.v1.keras import backend as K
     from tensorflow.keras.optimizers import Adam
     from tensorflow.keras.layers import Conv2D, Dense, Flatten, Input, Lambda
-    from tensorflow.keras.layers import concatenate, Activation
+    from tensorflow.keras.layers import concatenate, Activation, Concatenate
     from tensorflow.keras.models import Model, Sequential
     from tensorflow.python.keras.callbacks import History
     from tensorflow.python.keras.losses import MSE
@@ -45,7 +44,7 @@ elif tf.__version__ in ("1.12.0", "1.13.1", "1.14.0",):
     from tensorflow.keras import backend as K
     from tensorflow.keras.optimizers import Adam
     from tensorflow.keras.layers import Conv2D, Dense, Flatten, Input, Lambda
-    from tensorflow.keras.layers import concatenate, Activation
+    from tensorflow.keras.layers import concatenate, Activation, Concatenate
     from tensorflow.keras.models import Model
     from tensorflow.python.keras.callbacks import History
     from tensorflow import global_variables_initializer
@@ -64,6 +63,7 @@ elif tf.__version__ in ("1.8.0", "1.4.1", "1.4.0"):
         Flatten,
         Input,
         Lambda,
+        Concatenate,
     )
     from tensorflow.python.keras._impl.keras.layers import concatenate
     from tensorflow.python.keras._impl.keras.layers import Activation
@@ -79,9 +79,7 @@ else:
 
 
 def loss_to_val(loss):
-    """
-    make keras instance into value.
-    """
+    """Make keras instance into value."""
     if isinstance(loss, History):
         loss = loss.history.get("loss")[0]
     return loss

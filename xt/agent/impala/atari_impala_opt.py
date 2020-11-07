@@ -17,19 +17,20 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Vector multi-environment in Atari agent for impala algorithm."""
+"""Build vectorized multi-environment in Atari agent for impala algorithm."""
 
 import numpy as np
 from collections import defaultdict, deque
 
 from xt.agent.ppo.cartpole_ppo import CartpolePpo
-from xt.framework.comm.message import message, set_msg_info
-from xt.framework.register import Registers
+from zeus.common.ipc.message import message, set_msg_info
+from zeus.common.util.register import Registers
 
 
 @Registers.agent
 class AtariImpalaOpt(CartpolePpo):
-    """Atari Agent with Impala algorithm."""
+    """Build Atari agent with IMPALA algorithm."""
+
     def __init__(self, env, alg, agent_config, **kwargs):
         self.vector_env_size = kwargs.pop("vector_env_size")
 
@@ -46,22 +47,23 @@ class AtariImpalaOpt(CartpolePpo):
             self.sample_vector[env_id] = defaultdict(list)
 
         self.reward_track = deque(
-            maxlen=self.vector_env_size*self.broadcast_weights_interval)
+            maxlen=self.vector_env_size * self.broadcast_weights_interval)
         self.reward_per_env = defaultdict(float)
 
     def get_explore_mean_reward(self):
-        """calculate explore reward among limited trajectory"""
+        """Calculate explore reward among limited trajectory."""
         return np.nan if not self.reward_track else np.nanmean(self.reward_track)
 
     def infer_action(self, state, use_explore):
         """
-        Infer an action with the `state`
+        Infer an action with `state`.
+
         :param state:
         :param use_explore:
         :return: action value
         """
         if self.next_state is None:
-            s_t = (np.array(state, dtype="int16")-128).astype("int8")
+            s_t = (np.array(state, dtype="int16") - 128).astype("int8")
             predict_val = self.alg.predict(s_t)
 
             logit = predict_val[0]
@@ -82,8 +84,8 @@ class AtariImpalaOpt(CartpolePpo):
         return action
 
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
-        """handle next state, reward and info"""
-        next_state = (np.array(next_raw_state, dtype="int16")-128).astype("int8")
+        """Handle next state, reward and info."""
+        next_state = (np.array(next_raw_state, dtype="int16") - 128).astype("int8")
         predict_val = self.alg.predict(next_state)
 
         self.next_logit = predict_val[0]
@@ -123,8 +125,8 @@ class AtariImpalaOpt(CartpolePpo):
         return trajectory
 
     def sync_model(self):
-        """block wait one [new] model when sync need"""
-        model_name = "none"
+        """Block wait one [new] model when sync need."""
+        model_name = None
         self.sync_weights_count += 1
         if self.sync_weights_count >= self.broadcast_weights_interval:
             model_name = self.recv_explorer.recv(block=True)
@@ -139,7 +141,7 @@ class AtariImpalaOpt(CartpolePpo):
         return model_name
 
     def reset(self):
-        """clear the sample_vector buffer"""
+        """Clear the sample_vector buffer."""
         self.sample_vector = dict()
         for env_id in range(self.vector_env_size):
             self.sample_vector[env_id] = defaultdict(list)

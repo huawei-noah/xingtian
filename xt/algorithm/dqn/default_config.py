@@ -1,6 +1,5 @@
-"""
-Static Variable in DQN
-"""
+"""Set static variables in DQN."""
+
 TAU = 0.001  # Target Network HyperParameters
 LRC = 0.001  # Lerning rate for Critic
 BATCH_SIZE = 32

@@ -24,7 +24,8 @@ from xt.environment.environment import Environment
 
 
 class AtariBaseEnv(Environment, gym.Wrapper):
-    ''' atari base wrapper including noop reset and repeat action'''
+    """Create atari base wrapper including noop reset and repeat action."""
+
     def init_env(self, env_info):
         env = gym.make(env_info["name"])
         gym.Wrapper.__init__(self, env)
@@ -37,7 +38,7 @@ class AtariBaseEnv(Environment, gym.Wrapper):
         return env
 
     def reset(self):
-        ''' reset environment and take random noop action'''
+        """Create reset environment and take random noop action."""
         self.env.reset()
 
         repeat_noop_times = self.unwrapped.np_random.randint(1, self.max_noop_times + 1)
@@ -49,13 +50,15 @@ class AtariBaseEnv(Environment, gym.Wrapper):
         return state
 
     def step(self, action, agent_index=0):
-        ''' take repeat action '''
+        """Take repeat action."""
         total_reward = 0.0
         done = None
         for i in range(self.repeat_times):
             state, reward, done, info = self.env.step(action)
-            if i == self.repeat_times - 2: self.state_buffer[0] = state
-            if i == self.repeat_times - 1: self.state_buffer[1] = state
+            if i == self.repeat_times - 2:
+                self.state_buffer[0] = state
+            if i == self.repeat_times - 1:
+                self.state_buffer[1] = state
             total_reward += reward
             if done:
                 break
@@ -66,7 +69,8 @@ class AtariBaseEnv(Environment, gym.Wrapper):
 
 
 class AtariRealDone(Environment, gym.Wrapper):
-    ''' atari real done wrapper, reset environment when real done '''
+    """Create atari real done wrapper, reset environment when real done."""
+
     def init_env(self, env):
         gym.Wrapper.__init__(self, env)
 
@@ -97,13 +101,14 @@ class AtariRealDone(Environment, gym.Wrapper):
         info.update({'real_done': self.real_done})
         return state, reward, done, info
 
+
 class AtariFireRest(Environment, gym.Wrapper):
     def init_env(self, env):
         gym.Wrapper.__init__(self, env)
         return env
 
     def reset(self):
-        ''' take action after reset '''
+        """Take action after reset."""
         state = self.env.reset()
         state, _, done, _ = self.env.step(1)
         if done:
@@ -114,10 +119,11 @@ class AtariFireRest(Environment, gym.Wrapper):
 
         return state
 
+
 def make_atari(env_info):
     env = AtariBaseEnv(env_info)
     env = AtariRealDone(env)
     if 'FIRE' in env.unwrapped.get_action_meanings():
-       env = AtariFireRest(env)
+        env = AtariFireRest(env)
 
     return env

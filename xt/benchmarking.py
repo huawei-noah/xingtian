@@ -18,27 +18,31 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE
 """
-usage:  e.g,
+Run benchmark.
+
+Usage:  e.g,
 python3 benchmarking.py -f config/.cartpole.yaml --start_datetime 20190624-163110
 
 if arise multi-scaler on web, you NEED re-run tensorboard !!!  bugs
 
-NOTEs:
-        1) -f support list of config file
+Notes
+-----
+    1) -f support list of config file
 """
+
 import argparse
 import subprocess
 
-from xt.benchmark.configs import XtBenchmarkConf as xt_bm_config  # pylint: disable=C0413
-from xt.benchmark.tools.visual_rewards import display_rewards # pylint: disable=C0413
+from zeus.common.util.default_xt import XtBenchmarkConf as xt_bm_config  # pylint: disable=C0413
+from zeus.visual.visual_rewards import display_rewards  # pylint: disable=C0413
+
 
 def main():
     """
-    The main entrance for benchmark
+    DESC: The main entrance for benchmark.
+
     Returns: tensorboard handler
-
     """
-
     parser = argparse.ArgumentParser(description="benchmark tools.")
 
     parser.add_argument(
@@ -91,6 +95,6 @@ def main():
     vision_call = subprocess.Popen("tensorboard --logdir={}".format(xt_bm_config.default_tb_path), shell=True)
     vision_call.wait()
 
+
 if __name__ == "__main__":
     main()
-    

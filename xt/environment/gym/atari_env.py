@@ -17,28 +17,34 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""atari env for simulation"""
+"""Make atari env for simulation."""
 import cv2
 import numpy as np
 from collections import deque
 
 from xt.environment.environment import Environment
+from xt.environment.gym import infer_action_type
 from xt.environment.gym.atari_wrappers import make_atari
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 cv2.ocl.setUseOpenCL(False)
 
+
 @Registers.env
 class AtariEnv(Environment):
-    """It encapsulates an openai gym environment."""
+    """Encapsulate an openai gym environment."""
+
     def init_env(self, env_info):
         """
-        create a atari environment instance
+        Create a atari environment instance.
 
         :param: the config information of environment.
         :return: the instance of environment
         """
+        env = make_atari(env_info)
+
         self.dim = env_info.get('dim', 84)
+        self.action_type = infer_action_type(env.action_space)
 
         self.init_obs = np.zeros((self.dim, self.dim, 1), np.uint8)
         self.stack_size = 4
@@ -48,7 +54,7 @@ class AtariEnv(Environment):
         self.init_state = None
         self.done = True
 
-        return make_atari(env_info)
+        return env
 
     def init_stack_obs(self, num):
         for _ in range(num):
@@ -56,7 +62,7 @@ class AtariEnv(Environment):
 
     def reset(self):
         """
-        reset the environment, if done is true, must clear obs array
+        Reset the environment, if done is true, must clear obs array.
 
         :return: the observation of gym environment
         """
@@ -72,6 +78,7 @@ class AtariEnv(Environment):
     def step(self, action, agent_index=0):
         """
         Run one timestep of the environment's dynamics.
+
         Accepts an action and returns a tuple (state, reward, done, info).
 
         :param action: action
@@ -90,15 +97,18 @@ class AtariEnv(Environment):
 
     def obs_proc(self, obs):
         obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
-        obs = cv2.resize(obs, (self.dim, self.dim), interpolation=cv2.INTER_AREA)
+        obs = cv2.resize(obs, (self.dim, self.dim),
+                         interpolation=cv2.INTER_AREA)
         obs = np.expand_dims(obs, -1)
         return obs
 
+
 @Registers.env
 class VectorAtariEnv(Environment):
-    """vector atari environment to speedup"""
+    """Vectorize atari environment to speedup."""
+
     def init_env(self, env_info):
-        """create multi-env as a vector """
+        """Create multi-env as a vector."""
         self.vector_env_size = env_info.get("vector_env_size")
         assert self.vector_env_size is not None, "vector env must assign 'env_num'."
 
@@ -107,7 +117,7 @@ class VectorAtariEnv(Environment):
             self.env_vector.append(AtariEnv(env_info))
 
     def reset(self):
-        """reset each env within vector"""
+        """Reset each env within vector."""
         state = [env.reset() for env in self.env_vector]
         self.init_state = state
 
@@ -115,7 +125,8 @@ class VectorAtariEnv(Environment):
 
     def step(self, action, agent_index=0):
         """
-        step in order.
+        Step in order.
+
         :param action:
         :param agent_index:
         :return:
@@ -134,7 +145,9 @@ class VectorAtariEnv(Environment):
         return batch_obs, batch_reward, batch_done, batch_info
 
     def get_env_info(self):
-        """return environment's basic information,
+        """
+        Return environment's basic information.
+
         vector environment only support single agent now.
         """
         self.reset()

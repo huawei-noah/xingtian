@@ -18,22 +18,25 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """
-Actor launching module.
+Create actor launching module.
+
 User could launch the Actor for explore, or Evaluator for evaluation.
 """
+
 from multiprocessing import Process
 from subprocess import Popen
 
 from absl import logging
 from xt.framework.broker import BrokerMaster, BrokerSlave
 from xt.framework.default_config import DEFAULT_NODE_CONFIG
-from xt.framework.remoter import get_host_ip, remote_run
-from xt.util.logger import VERBOSITY_MAP
+from xt.framework.remoter import remote_run
+from zeus.common.util.common import get_host_ip
+from zeus.common.util.logger import VERBOSITY_MAP
 
 
 def launch_remote_broker(user, passwd, actor_ip, host_ip, broker_id,
                          start_port, remote_env, verbosity):
-    """ start remote actor through fabric """
+    """Start remote actor through fabric."""
     cmd = (
         '"import xt; from xt.framework.broker_launcher import start_broker_slave; '
         "start_broker_slave({}, {}, '{}', '{}')\"".format(
@@ -52,11 +55,13 @@ def launch_remote_broker(user, passwd, actor_ip, host_ip, broker_id,
 
 
 def launch_local_broker(broker_id, start_port, server_ip="127.0.0.1", verbosity="info"):
-    """ run actor in local node,
-        The process called by this command could been still alive.
-        e.i, run as a foreground task.
-        we used `subprocess.Popen.run` currently.
-     """
+    """
+    Run actor in local node.
+
+    The process called by this command could been still alive.
+    i.e., run as a foreground task.
+    we use `subprocess.Popen.run` currently.
+    """
     cmd = (
         "import xt; from xt.framework.broker_launcher import start_broker_slave; "
         "start_broker_slave({}, {}, '{}', '{}')".format(
@@ -68,16 +73,16 @@ def launch_local_broker(broker_id, start_port, server_ip="127.0.0.1", verbosity=
 
 
 def start_broker_slave(broker_id, start_port, server_ip="127.0.0.1", verbosity="info"):
-    """ create a broker slave and start it  """
+    """Create a broker slave and start it."""
     logging.set_verbosity(VERBOSITY_MAP.get(verbosity, logging.INFO))
+    logging.info("set verbosity in broker slave: {}".format(verbosity))
 
     broker_slave = BrokerSlave(server_ip, broker_id, start_port)
     broker_slave.start()
 
 
 def launch_broker(config_info, start_port=None, verbosity="info"):
-
-    """ run actor in local node, unify the act launcher api"""
+    """Run actor in local node, unify the act launcher api."""
     node_config_list = config_info.get("node_config", DEFAULT_NODE_CONFIG)
 
     broker_master = BrokerMaster(node_config_list.copy(), start_port)
