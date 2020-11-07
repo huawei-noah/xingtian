@@ -25,7 +25,7 @@ Create a target folder in the `xt/algorithm` directory and implement `YOUR_ALGOR
 
 ```python
 from xt.algorithm import Algorithm
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 
 @Registers.algorithm
@@ -47,7 +47,7 @@ The Model module is used to define the architecture of the deep network to perfo
 
 ```python
 import torch
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 # Pytorch 
 @Registers.model
@@ -76,7 +76,7 @@ class NewTFModel(XTModel):
 The Agent module is responsible for the interaction logic between the algorithm and the environment, and integrates data of different trajectory in the multiagent. The working directory is `xt/Agent`. Generally, developers only need to inherit the Agent base class and implement the `infer_action` and `handle_env_feedback` interfaces. 
 
 ```python
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 from xt.agent import Agent
 
 @Registers.agent
@@ -101,7 +101,7 @@ The environment module encapsulates the differences between different environmen
 
 ```python
 from xt.environment.environment import Environment
-from xt.framework.register import Registers
+from zeus.common.util.register import Registers
 
 
 @Registers.env

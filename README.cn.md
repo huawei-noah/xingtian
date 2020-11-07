@@ -5,7 +5,7 @@
 
 [English](./README.md)
 
-## 简介 
+## 简介
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -19,7 +19,7 @@ sudo apt-get install python3-pip libopencv-dev redis-server -y
 pip3 install opencv-python
 
 # run with tensorflow 1.15.0
-pip3 install zmq h5py gym[atari] tqdm imageio matplotlib==3.0.3 Ipython pyyaml tensorflow==1.15.0 pyarrow lz4 fabric2 line_profiler redis absl-py psutil 
+pip3 install zmq h5py gym[atari] tqdm imageio matplotlib==3.0.3 Ipython pyyaml tensorflow==1.15.0 pyarrow lz4 fabric2 line_profiler redis absl-py psutil
 ```
 
 也可使用pip 进行依赖安装 `pip3 install -r requirements.txt`
@@ -31,11 +31,11 @@ pip3 install zmq h5py gym[atari] tqdm imageio matplotlib==3.0.3 Ipython pyyaml t
 
 ## 安装
 ```zsh
-# cd PATH/TO/XingTian 
+# cd PATH/TO/XingTian
 pip3 install -e .
 ```
 
-可通过 `import xt; print(xt.__Version__)`  来确认是否已正常安装. 
+可通过 `import xt; print(xt.__Version__)`  来确认是否已正常安装.
 
 ```python
 In [1]: import xt
@@ -143,10 +143,10 @@ xt_main -f examples/cartpole_ppo.yaml -t train
 
 | env           | XingTian PPO | RLlib PPO |
 | ------------- | ------------ | --------- |
-| BeamRider     | 1775         | 1618      |
-| Breakout      | 1801         | 1535      |
-| QBert         | 1741         | 1617      |
-| SpaceInvaders | 1858         | 1608      |
+| BeamRider     | 1994         | 1618      |
+| Breakout      | 2033         | 1535      |
+| QBert         | 2086         | 1617      |
+| SpaceInvaders | 2037         | 1608      |
 
 > 实验硬件环境： 72  Intel(R) Xeon(R) Gold 6154 CPU @ 3.00GHz with single Tesla V100
 

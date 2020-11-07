@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""This script only used for CI, just check the connectivity of total pipeline."""
 import glob
 import os
 import signal
@@ -7,13 +8,19 @@ import sys
 import time
 from multiprocessing import Process
 import yaml
-from xt.benchmark.tools.get_config import check_if_patch_local_node
+import shutil
 
-MODULE_PATH = os.path.abspath(os.path.join("."))
-if MODULE_PATH not in sys.path:
-    sys.path.append(MODULE_PATH)
+XINGTIAN_PATH = os.path.abspath(os.path.join("."))
+ZEUS_PATH = os.path.abspath(os.path.join(".."))
+if XINGTIAN_PATH not in sys.path:
+    sys.path.append(XINGTIAN_PATH)
+if ZEUS_PATH not in sys.path:
+    sys.path.append(ZEUS_PATH)
 
-from xt.benchmark.tools.evaluate_xt import get_bm_args_from_config, read_train_event_id
+
+if "PYTHONPATH" not in os.environ:
+    os.environ["PYTHONPATH"] = "{}:{}".format(ZEUS_PATH, XINGTIAN_PATH)
+
 
 CI_WORKSPACE = "scripts/ci_tmp_yaml"
 
@@ -31,7 +38,7 @@ def write_conf_file(config_folder, config):
 
 
 def check_sys_argv(argv):
-    """fetch ci parameters."""
+    """Fetch ci parameters."""
     if len(argv) != 2:
         print("input argv err")
         exit(1)
@@ -42,8 +49,8 @@ def check_sys_argv(argv):
 
     end_tag = config_list.get("end_flag")
     ci_task = config_list.get("task")
-    save_steps = config_list.get("model_save_step", 100)
-    config_dir = config_list.get("config_dir", "examples/default_cases")
+    save_steps = config_list.get("save_interval", 100)
+    config_dir = config_list.get("config_dir", "examples")
     single_flag = config_list.get("single_case", None)
 
     print("##################################")
@@ -65,22 +72,40 @@ def check_sys_argv(argv):
     return node_array, end_tag, ci_task, save_steps, config_dir, single_flag
 
 
+def get_alg_save_interval(alg_name, interval_config):
+    _name = str(alg_name).upper()
+    default_interval = interval_config["default"]
+    for up_name in ("DQN", "PPO", "IMPALA"):
+        if up_name in _name:
+            return interval_config.get(up_name, default_interval)
+
+    return default_interval
+
+
 def assemble_ci_config(target_yaml, ci_task, node_list, save_steps):
     with open(target_yaml) as config_file:
-        config = yaml.load(config_file)
+        config = yaml.safe_load(config_file)
 
     alg_config = config["alg_para"].get("alg_config")
+
+    special_step = get_alg_save_interval(config["alg_para"]["alg_name"], save_steps)
+
     if alg_config is None:
-        alg_save_steps = {"alg_config": {"save_model_step": save_steps}}
+        alg_save_steps = {"alg_config": {"save_interval": special_step,
+                                         "save_model": True,
+                                         "train_per_checkpoint": 1,
+                                         "prepare_times_per_train": 1}}
         config["alg_para"].update(alg_save_steps)
     else:
-        config["alg_para"]["alg_config"].setdefault("save_model_step", save_steps)
+        config["alg_para"]["alg_config"].update(
+            {"save_interval": special_step, "save_model": True,
+             "train_per_checkpoint": 1,
+             "prepare_times_per_train": 1})
 
     if ci_task == "train":
         # check key
         if "node_config" not in config:
             config.update({"node_config": list()})
-
         for k in config.get("node_config"):
             config["node_config"].pop()
         for i in range(len(node_list)):
@@ -95,7 +120,10 @@ def assemble_ci_config(target_yaml, ci_task, node_list, save_steps):
 
 def run_test(tmp_conf, ci_task):
     process = subprocess.Popen(
-        ["setsid", "python3", "xt/main.py", "--config_file", tmp_conf, "--task", ci_task],
+        ["setsid", "python3", "xt/main.py", "--config_file", tmp_conf,
+         "--task", ci_task,
+         # "--verbosity", "debug"
+         ],
         # stdout=subprocess.PIPE,
     )
     return process
@@ -111,6 +139,7 @@ def check_test(flag, ci_task, model_path, tmp_file):
 
     test_process = run_test(tmp_file, ci_task)
     normal_return_code = (0, -9, -15)
+    print("checking model: {} \n for: {}".format(model_path, tmp_file))
 
     while True:
         returncode = test_process.poll()
@@ -130,7 +159,7 @@ def check_test(flag, ci_task, model_path, tmp_file):
             except Exception:
                 files_num = 0
 
-            print(files_num, previous_length, tmp_file, model_path)
+            print((files_num, previous_length), end="\r")
             if previous_length < files_num:
                 if returncode is None:
                     close_test(test_process)
@@ -154,7 +183,7 @@ def close_test(process):
     process.send_signal(signal.SIGINT)
     # process.kill()
     # process.terminate()
-    print("sent close signal to work process")
+    print("sent close signal to work process\n{}".format("*" * 10))
     time.sleep(1)
 
 
@@ -180,38 +209,46 @@ def parallel_case_check(processes):
 def main():
     node_list, end_flag, ci_task, save_steps, conf_dir, sgf = check_sys_argv(sys.argv)
 
+    if os.path.isdir(CI_WORKSPACE):
+        shutil.rmtree(CI_WORKSPACE)
+
     if not os.path.isdir(CI_WORKSPACE):
         os.makedirs(CI_WORKSPACE)
 
     _candidates = glob.glob("{}/*.yaml".format(conf_dir))
     target_yaml = [item for item in _candidates if item[0] != "."]
-    print("CI start parse yaml: \n", target_yaml)
+    print("CI start parse <{}> yaml: \n{}".format(len(target_yaml), target_yaml))
 
     if len(target_yaml) < 1:
         print("exit with config folder is empty")
         exit(1)
 
     # go through all the config files
-    for one_yaml in target_yaml:
+    total_num = len(target_yaml)
+    for yml_index, one_yaml in enumerate(target_yaml, 1):
         # print(end_flag)
+        # sgf, single_case
         if sgf and one_yaml != sgf:
+            print("skip '{}'".format(one_yaml))
             continue
-        print("processing: {}".format(one_yaml))
+
+        print("{}\n doing {}/{}: {}".format(">" * 20, yml_index, total_num, one_yaml))
+
         config_tmp = assemble_ci_config(one_yaml, ci_task, node_list, save_steps)
         processes_parallel = []
         # go through all the node in node_config
         for node_n in range(len(node_list)):
             tmp_name = (
-                os.path.split(one_yaml)[-1]
-                + "_node_"
-                + str(len(config_tmp.get("node_config")))
+                os.path.split(one_yaml)[-1] +
+                "_node_" +
+                str(len(config_tmp.get("node_config")))
             )
             if node_n != 0:
                 config_tmp["node_config"].pop()
 
-            # try environment number in 1 and 2
-            for env_n in range(2):
-                config_tmp["env_num"] = env_n + 1
+            # try environment number in 1 and 3
+            for env_n in (1, 3, ):
+                config_tmp["env_num"] = env_n
                 tmp_name += "_e-" + str(config_tmp.get("env_num"))
 
                 # ---------
@@ -232,12 +269,11 @@ def main():
                 tmp_yaml_name = os.path.join(CI_WORKSPACE, tmp_name)
 
                 write_conf_file(tmp_yaml_name, config_tmp)
-                from xt.benchmark.tools.evaluate_xt import (
+                from zeus.common.util.evaluate_xt import (
                     get_train_model_path_from_config,
                 )
 
                 model_path = get_train_model_path_from_config(config_tmp)
-                print("model save path: ", model_path)
 
                 p = Process(
                     target=check_test,
@@ -245,8 +281,9 @@ def main():
                 )
                 p.start()
                 processes_parallel.append(p)
-                time.sleep(0.4)
+                time.sleep(1.0)
 
+                # single process
         end_check = parallel_case_check(processes_parallel)
 
         time.sleep(1)
@@ -257,8 +294,15 @@ def main():
 
         rm_files(CI_WORKSPACE)
 
+    if os.path.isdir(CI_WORKSPACE):
+        shutil.rmtree(CI_WORKSPACE)
+
     print("Normal train passed")
 
 
 if __name__ == "__main__":
+    from zeus.common.util.logger import time_to_str
+    start_time = time.time()
     main()
+    end_time = time.time()
+    print("Used time: {} :)\n".format(time_to_str(end_time - start_time)))

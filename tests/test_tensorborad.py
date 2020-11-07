@@ -19,31 +19,33 @@
 # THE SOFTWARE
 import subprocess
 import os
+from time import sleep
 
-from datetime import datetime
 import numpy as np
-import tensorflow as tf
-from xt.benchmark.analyze.tensorboarder import Summary
+from zeus.visual.tensorboarder import SummaryBoard
 
 
 def test(logdir_root="/tmp/.xt_data/tensorboard"):
     """
     test for tensorboard
-    :param logdir_root: tensorboard file path 
+    :param logdir_root: tensorboard file path
     """
     if not os.path.isdir(logdir_root):
         os.makedirs(logdir_root)
 
-    summary = Summary(logdir_root)
-    summary2 = Summary(logdir_root)
+    summary = SummaryBoard(logdir_root)
+    sleep(1)
+    summary2 = SummaryBoard(logdir_root)
 
     for dummy_index in range(1, 500, 2):
         loss = -dummy_index * 10 * np.log10(dummy_index)
         reward = dummy_index * np.exp2(dummy_index / 100)
 
         if dummy_index % 5 == 0:
-            summary.add_scalar("train_loss", loss, dummy_index / 5)
-            summary2.add_scalar("train_reward", reward, dummy_index / 5)
+            summary.add_scalar("data/train_loss", loss, dummy_index / 5,
+                               walltime=dummy_index, flush=True)
+            summary2.add_scalar("data/train_reward", reward, dummy_index / 5,
+                                walltime=dummy_index, flush=True)
 
     vision_call = subprocess.Popen(
         "tensorboard --logdir={}".format(logdir_root), shell=True

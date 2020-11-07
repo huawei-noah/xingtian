@@ -1,7 +1,7 @@
 import os
-from xt.benchmark.tools.evaluate_xt import fetch_train_event
-from xt.benchmark.tools.evaluate_xt import read_train_records
-from xt.benchmark.tools.evaluate_xt import DEFAULT_ARCHIVE_DIR
+from zeus.common.util.evaluate_xt import fetch_train_event
+from zeus.common.util.evaluate_xt import read_train_records
+from zeus.common.util.evaluate_xt import DEFAULT_ARCHIVE_DIR
 
 
 def test_fetch_train_path():

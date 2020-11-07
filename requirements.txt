@@ -9,7 +9,7 @@ pyyaml
 pyarrow==0.14.0
 lz4
 fabric2
-line_profiler
 redis
 absl-py
 psutil
+tensorboardX
