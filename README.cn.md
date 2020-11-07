@@ -41,7 +41,7 @@ pip3 install -e .
 In [1]: import xt
 
 In [2]: xt.__version__
-Out[2]: '0.1.1'
+Out[2]: '0.2.0'
 ```
 
 
