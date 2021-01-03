@@ -62,9 +62,14 @@ class Agent(object):
     def clear_trajectory(self):
         self.trajectory.clear()
 
-    def get_trajectory(self):
+    def get_trajectory(self, last_pred=None):
+        """Get trajectory"""
+        # Need copy, when run with explore time > 1,
+        # if not, will clear trajectory before sent.
         trajectory = message(self.trajectory.copy())
+        # trajectory = message(deepcopy(self.trajectory))
         set_msg_info(trajectory, agent_id=self.id)
+
         return trajectory
 
     def add_to_trajectory(self, transition_data):
@@ -138,7 +143,7 @@ class Agent(object):
             state = self.do_one_interaction(state, use_explore)
 
             if need_collect:
-                self.add_to_trajectory(self.transition_data.copy())
+                self.add_to_trajectory(self.transition_data)
 
             if self.transition_data["done"]:
                 if not self.keep_seq_len:
@@ -146,11 +151,15 @@ class Agent(object):
                 self.env.reset()
                 state = self.env.get_init_state()
 
-        return self.get_trajectory()
+        last_pred = self.alg.predict(state)
+        return self.get_trajectory(last_pred)
 
     def sum_trajectory_reward(self):
         """Return the sum of trajectory reward."""
-        return {self.id: np.sum(self.trajectory["reward"])}
+        return {self.id: {
+            "epi_reward": np.sum(self.trajectory["reward"]),
+            "step_reward": np.mean(self.trajectory["reward"])
+        }}
 
     def calc_custom_evaluate(self):
         """

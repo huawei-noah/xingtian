@@ -10,3 +10,19 @@ class XtBenchmarkConf(object):
     default_tb_path = "/tmp/.xt_data/tensorboard"
     default_plot_path = "/tmp/.xt_data/plot"
     default_train_interval_per_eval = 200
+
+
+class DebugConf(object):
+    """Make Debug config, user could re-set it."""
+
+    # trace malloc
+    trace = False
+
+    # summary memory used
+    memory_summary = True
+
+    # memory verbose top k
+    top_k = 3
+
+    # show interval
+    interval_s = 50

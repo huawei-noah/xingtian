@@ -10,9 +10,11 @@
 
 """ResNet models for sr_ea."""
 import logging
-from zeus.modules.module import *
-from zeus.modules.connections import Sequential, Add
 import functools
+from zeus.modules.module import Module
+from zeus.modules.operators import ops
+from zeus.common import ClassFactory, ClassType
+from zeus.modules.connections import Sequential, Add
 
 
 def initialize_weights(net_l, scale=1.0):
@@ -95,6 +97,8 @@ class ChannelIncreaseBlock(Module):
             self.layers.append(NAME_BLOCKS[block_name](
                 base_channel=base_channel))
         self.layers = Sequential(*self.layers)
+        self.blocks = self.layers.children() if isinstance(self.layers.children(), list) else list(
+            self.layers.children())
 
     def call(self, inputs):
         """Calculate the output of the model.
@@ -102,16 +106,16 @@ class ChannelIncreaseBlock(Module):
         :param x: input tensor
         :return: output tensor of the model
         """
-        out = []
+        out = ()
         x = inputs
-        for block in self.layers.children():
+        for block in self.blocks:
             x = block(x)
-            out.append(x)
+            out += (x,)
 
-        return ops.concat(tuple(out))
+        return ops.concat(out)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MtMSR(Module):
     """Search space of MtM-NAS."""
 

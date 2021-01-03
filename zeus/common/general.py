@@ -63,6 +63,7 @@ class Restrict(ConfigSerializable):
     flops = None
     latency = None
     params = None
+    model_valid = None
     duration = {}
     trials = {}
 
@@ -97,4 +98,5 @@ class General(ConfigSerializable):
     parallel_search = False
     parallel_fully_train = False
     _parallel = False
+    _resume = False
     devices_per_trainer = 1

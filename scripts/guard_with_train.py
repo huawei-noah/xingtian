@@ -8,6 +8,7 @@ import sys
 import time
 from multiprocessing import Process
 import yaml
+import copy
 import shutil
 
 XINGTIAN_PATH = os.path.abspath(os.path.join("."))
@@ -23,6 +24,7 @@ if "PYTHONPATH" not in os.environ:
 
 
 CI_WORKSPACE = "scripts/ci_tmp_yaml"
+NORMAL_RETURN_CODE = (0, -9, -15)
 
 
 def rm_files(path):
@@ -92,7 +94,7 @@ def assemble_ci_config(target_yaml, ci_task, node_list, save_steps):
 
     if alg_config is None:
         alg_save_steps = {"alg_config": {"save_interval": special_step,
-                                         "save_model": True,
+                                         "save_model": True,  # save model to check
                                          "train_per_checkpoint": 1,
                                          "prepare_times_per_train": 1}}
         config["alg_para"].update(alg_save_steps)
@@ -136,15 +138,13 @@ def check_test(flag, ci_task, model_path, tmp_file):
         files_model = os.listdir(model_path)
         previous_length = len(files_model)
     start = time.time()
-
     test_process = run_test(tmp_file, ci_task)
-    normal_return_code = (0, -9, -15)
     print("checking model: {} \n for: {}".format(model_path, tmp_file))
 
     while True:
         returncode = test_process.poll()
         # print("returncode:", returncode)
-        if returncode is not None and returncode not in normal_return_code:
+        if returncode is not None and returncode not in NORMAL_RETURN_CODE:
             print("get a err on test", tmp_file)
             if flag:
                 exit(1)
@@ -159,11 +159,11 @@ def check_test(flag, ci_task, model_path, tmp_file):
             except Exception:
                 files_num = 0
 
-            print((files_num, previous_length), end="\r")
+            # print((files_num, previous_length), end="\r")
+            # NOTE: max to keep default to 100 
+            print((files_num, previous_length, model_path))
             if previous_length < files_num:
-                if returncode is None:
-                    close_test(test_process)
-                elif returncode in normal_return_code:
+                if returncode is None and close_test(test_process):
                     rm_files(model_path)
                     break
 
@@ -184,15 +184,30 @@ def close_test(process):
     # process.kill()
     # process.terminate()
     print("sent close signal to work process\n{}".format("*" * 10))
-    time.sleep(1)
+
+    return_code = None
+    for _i in range(10):
+        time.sleep(2)
+
+        return_code = process.poll()
+        # print("wait return_code:", return_code)
+        if not return_code:
+            break
+
+    if return_code in NORMAL_RETURN_CODE:
+        return True
+    else:
+        return False
 
 
 def parallel_case_check(processes):
+    """check one case in Parallel, vary node, env."""
     while True:
         exitcodes = []
         for process in processes:
             exitcodes.append(process.exitcode)
             if process.exitcode is not None and process.exitcode != 0:
+                print("process.exitcode: ", process.exitcode)
                 return 1
 
         exitcode_state = True
@@ -203,7 +218,8 @@ def parallel_case_check(processes):
         if exitcode_state:
             return 0
 
-        time.sleep(0.1)
+        time.sleep(0.2)
+        # print("sleep parallel_case_check: ", exitcodes)
 
 
 def main():
@@ -232,24 +248,23 @@ def main():
             print("skip '{}'".format(one_yaml))
             continue
 
-        print("{}\n doing {}/{}: {}".format(">" * 20, yml_index, total_num, one_yaml))
+        print("{}\nDoing {}/{}: {}".format(">" * 20, yml_index, total_num, one_yaml))
 
-        config_tmp = assemble_ci_config(one_yaml, ci_task, node_list, save_steps)
+        config_template = assemble_ci_config(one_yaml, ci_task, node_list, save_steps)
         processes_parallel = []
         # go through all the node in node_config
         for node_n in range(len(node_list)):
-            tmp_name = (
-                os.path.split(one_yaml)[-1] +
-                "_node_" +
-                str(len(config_tmp.get("node_config")))
-            )
+            tmp_name_base = "{}_node{}".format(
+                os.path.split(one_yaml)[-1], len(config_template.get("node_config")))
+
             if node_n != 0:
-                config_tmp["node_config"].pop()
+                config_template["node_config"].pop()
 
             # try environment number in 1 and 3
             for env_n in (1, 3, ):
+                config_tmp = copy.deepcopy(config_template)
                 config_tmp["env_num"] = env_n
-                tmp_name += "_e-" + str(config_tmp.get("env_num"))
+                tmp_name = "{}_e{}".format(tmp_name_base, config_tmp.get("env_num"))
 
                 # ---------
                 bm_id = config_tmp.get("benchmark", dict()).get("id")
@@ -273,7 +288,9 @@ def main():
                     get_train_model_path_from_config,
                 )
 
-                model_path = get_train_model_path_from_config(config_tmp)
+                model_path = get_train_model_path_from_config(config_tmp, task_postfix="T0")
+                if os.path.isdir(model_path):
+                    shutil.rmtree(model_path)
 
                 p = Process(
                     target=check_test,

@@ -38,7 +38,7 @@ class AvazuDataset(Dataset):
         logging.info("init new avazu_dataset finish. 0721 debug.")
 
     @property
-    def loader(self):
+    def data_loader(self):
         """Dataloader arrtribute which is a unified interface to generate the data.
 
         :return: a batch data

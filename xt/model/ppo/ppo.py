@@ -42,6 +42,7 @@ class PPO(XTModel):
         # fixme: could read action_dim&obs_dim from env.info
         self.state_dim = model_info['state_dim']
         self.action_dim = model_info['action_dim']
+        self.input_dtype = model_info.get('input_dtype', 'float32')
 
         self.action_type = model_config.get('action_type')
         self._lr = model_config.get('LR', LR)

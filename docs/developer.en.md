@@ -1,5 +1,13 @@
 ## Developer Guide
 
+Based on the distributed `Broker` design, XingTian divides the reinforcement learning process into two parts: `Learner` and `Explorer`. As shown in the following figure, `Learner` obtains the trajectory data through the broker for iterative update of model policies. While, the Explorer uses Broker to update their exploration models and collect exploration trajectory data.
+
+<div align="center">
+<img width="auto" height="480px" src="./.images/broker_arch.png">
+</div>
+
+
+
 The XingTian reinforcement learning library exposes the interfaces of the Algorithm, Model, Agent, and Environment application modules to developers. The following figure shows the relationship between the four application modules. Algorithm is instantiated in the training process and is used to iteratively update the model weight. The updated iteration weight is distributed to the Agent through the distributed background for interactive exploration in the environment. The Agent is instantiated only in the data sampling process. Developers can add classes based on their requirements and register the classes with the system. Then the classes can be combined in the YAML configuration file. 
 
 <div align="center">
@@ -21,7 +29,7 @@ The system provides the Algorithm base class to abstract phased operations in th
 - `save`：save model
 - `restore`：restore model
 
-Create a target folder in the `xt/algorithm` directory and implement `YOUR_ALGORITHM.py` in the folder.  After inheriting the base class, Developer only need to implement the `prepare_data` and `train` interfaces. and register with the system through `@Registers.algorithm.register`. The following is an example: 
+Create a target folder in the `xt/algorithm` directory and implement `YOUR_ALGORITHM.py` in the folder.  After inheriting the base class, Developer only need to implement the `prepare_data` and `train` interfaces. and register with the system through `@Registers.algorithm`. The following is an example: 
 
 ```python
 from xt.algorithm import Algorithm
@@ -43,7 +51,7 @@ class NewAlgorithm(Algorithm):
 
 The working directory of the Model module is `xt/model`. 
 
-The Model module is used to define the architecture of the deep network to perform the inference and training processes of the network. Considering the differences between the backends of different deep learning frameworks, the system abstracts the `XtModel` base class of Tensorflow. Users who use the Tensorflow backend can directly inherit this base class. The PyTorch backend users can inherit the `torch.nn.Module` base class based on the traditional deep learning method to implement logic such as model definition, prediction, and training. Register with the system through `@Registers.model.register`. The following is an example: 
+The Model module is used to define the architecture of the deep network to perform the inference and training processes of the network. Considering the differences between the backends of different deep learning frameworks, the system abstracts the `XtModel` base class of Tensorflow. Users who use the Tensorflow backend can directly inherit this base class. The PyTorch backend users can inherit the `torch.nn.Module` base class based on the traditional deep learning method to implement logic such as model definition, prediction, and training. Register with the system through `@Registers.model`. The following is an example: 
 
 ```python
 import torch

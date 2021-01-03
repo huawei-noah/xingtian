@@ -94,7 +94,7 @@ class TFVariables:
                                                  name="ph_{}".format(node_name))
             self._to_assign_node_dict[node_name] = variable.assign(self._ph[node_name])
 
-        logging.debug("node_hub_with_order: \n{}".format(self.node_hub_with_order.keys()))
+        logging.debug("layers_with_order: \n{}".format(self.node_hub_with_order.keys()))
 
     def get_weights(self):
         """Get weights with dict type."""
@@ -112,7 +112,10 @@ class TFVariables:
         # assert not unused_nodes, "weights: {} not assign!".format(unused_nodes)
 
         if not nodes_to_assign:
-            raise KeyError("NO node's weights could assign in self.graph")
+            print("to_weights: ", to_weights)
+            raise KeyError("NO node's weights could assign in self.graph {} vs {}".format(
+                self.node_hub_with_order.keys(), to_weights.keys()
+            ))
 
         assign_feed_dict = {
             self._ph[node_name]: value

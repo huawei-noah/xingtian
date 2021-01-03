@@ -35,8 +35,8 @@ class accuracy(MetricBase):
             key = self.__metric_name__ if is_one else 'accuracy_top{}'.format(k)
             in_top_k = tf.cast(tf.nn.in_top_k(output, target, k), tf.float32)
             top_k_accuracy = tf.compat.v1.metrics.mean(in_top_k)
-            top_accuracy[key] = top_k_accuracy
             if top_1 == -1:
                 top_1 = top_k_accuracy
                 top_accuracy["accuracy"] = top_1
+            top_accuracy[key] = top_k_accuracy
         return top_accuracy

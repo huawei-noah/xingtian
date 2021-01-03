@@ -15,7 +15,7 @@ from zeus.modules.operators.mix_ops import MixedOp, OPS
 from zeus.modules.operators.conv import conv_bn_relu, Seq, FactorizedReduce, ReLUConvBN
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Cell(ops.Module):
     """Cell structure according to desc."""
 
@@ -90,7 +90,7 @@ class Cell(ops.Module):
         if len(self.out_inp_list) != self.steps:
             raise Exception("out_inp_list length should equal to steps")
 
-    def call(self, s0, s1, weights=None, drop_path_prob=0):
+    def call(self, s0, s1, weights=None, drop_path_prob=0, selected_idxs=None):
         """Forward function of Cell.
 
         :param s0: feature map of previous of previous cell
@@ -106,17 +106,29 @@ class Cell(ops.Module):
         s1 = self.preprocess1(s1)
         states = [s0, s1]
         idx = 0
+        self.oplist = list(self.op_list.children())
         for i in range(self.steps):
             hlist = []
             for j, inp in enumerate(self.out_inp_list[i]):
-                op = list(self.op_list.children())[idx + j]
-                if weights is None:
-                    h = op(states[inp])
-                else:
+                op = self.oplist[idx + j]
+                if selected_idxs is None:
+                    if weights is None:
+                        h = op(states[inp])
+                    else:
+                        h = op(states[inp], weights[idx + j])
+                    if drop_path_prob > 0. and not isinstance(list(op.children())[0], ops.Identity):
+                        h = ops.drop_path(h, drop_path_prob)
+                    hlist.append(h)
+                elif selected_idxs[idx + j] == -1:
+                    # undecided mix edges
                     h = op(states[inp], weights[idx + j])
-                if drop_path_prob > 0. and not isinstance(list(op.children())[0], ops.Identity):
-                    h = ops.drop_path(h, drop_path_prob)
-                hlist.append(h)
+                    hlist.append(h)
+                elif selected_idxs[idx + j] == 0:
+                    # zero operation
+                    continue
+                else:
+                    h = self.oplist[idx + j](states[inp], None, selected_idxs[idx + j])
+                    hlist.append(h)
             s = sum(hlist)
             states.append(s)
             idx += len(self.out_inp_list[i])
@@ -124,7 +136,7 @@ class Cell(ops.Module):
         return ops.concat(states_list)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class NormalCell(Cell):
     """Normal Cell structure according to desc."""
 
@@ -132,7 +144,7 @@ class NormalCell(Cell):
         super(NormalCell, self).__init__(genotype, steps, concat, False, reduction_prev, C_prev_prev, C_prev, C)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ReduceCell(Cell):
     """Reduce Cell structure according to desc."""
 
@@ -140,7 +152,7 @@ class ReduceCell(Cell):
         super(ReduceCell, self).__init__(genotype, steps, concat, True, reduction_prev, C_prev_prev, C_prev, C)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ContextualCell_v1(ops.Module):
     """New contextual cell design."""
 
@@ -211,7 +223,7 @@ class ContextualCell_v1(ops.Module):
         return out
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AggregateCell(ops.Module):
     """Aggregate two cells and sum or concat them up."""
 

@@ -108,5 +108,5 @@ class Metrics(object):
         :type metrics: dict
         """
         for key in metrics:
-            if key in self.metric_results:
-                self.metric_results[key] = metrics[key]
+            # if key in self.metric_results:
+            self.metric_results[key] = metrics[key]

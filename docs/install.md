@@ -3,13 +3,12 @@
 
 ##### System Dependencies
 
-- redis
-- Opencv
+- OpenCV
 
 
 ```shell
 # ubuntu 18.04
-sudo apt-get install python3-pip libopencv-dev redis-server -y
+sudo apt-get install python3-pip libopencv-dev -y
 pip3 install opencv-python
 ```
 
@@ -23,5 +22,5 @@ pip3 install -r requirements.txt
 pip3 install -e . 
 ```
 
-> Note: XingTian only tested a lot in Tensorflow 1.15. Other versions may have unknown problems. Please let us know if there are any problems. 
+> Note: XingTian only tested  with Tensorflow 1.15.0 & 2.3.1. Other versions may have unknown problems. Please let us know if there are any problems. 
 

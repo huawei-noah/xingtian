@@ -93,11 +93,11 @@ def get_default_benchmark_id(benchmark_args):
 
 def add_timestamp_postfix(str_base, connector):
     return "{}".format(connector).join(
-        [str_base, datetime.now().strftime("%Y%m%d%H%M%S")]
+        [str_base, datetime.now().strftime("%y%m%d%H%M%S")]
     )
 
 
-def __get_archive_bm_basic_info(benchmark_args):
+def _get_archive_bm_basic_info(benchmark_args):
     archive_root = benchmark_args.get("archive_root")
     if not archive_root:
         archive_root = get_default_archive_path()
@@ -112,22 +112,25 @@ def __get_archive_bm_basic_info(benchmark_args):
     return os.path.abspath(archive_root), bm_id
 
 
-def __make_workspace(benchmark_args, connector="+"):
+def _make_workspace(benchmark_args, connector="+", task_postfix=None):
     """
     Make workspace path join with connector.
 
     Support user's fix path within connector character.
     """
-    archive_root, bm_id = __get_archive_bm_basic_info(benchmark_args)
+    archive_root, bm_id = _get_archive_bm_basic_info(benchmark_args)
     if connector not in bm_id:
         bm_id = add_timestamp_postfix(bm_id, connector)
+
+    if task_postfix:
+        bm_id += task_postfix
 
     return os.path.join(archive_root, bm_id), archive_root, bm_id
 
 
-def make_workspace_if_not_exist(benchmark_args, subdir="models"):
+def make_workspace_if_not_exist(benchmark_args, subdir="models", task_name=None):
     """Make workspace if not exist."""
-    workspace, archive_root, bm_id = __make_workspace(benchmark_args)
+    workspace, archive_root, bm_id = _make_workspace(benchmark_args, task_postfix=task_name)
     make_dirs_if_not_exist(workspace)
     if isinstance(subdir, str):
         make_dirs_if_not_exist(os.path.join(workspace, subdir))
@@ -206,13 +209,13 @@ def find_train_info(train_event_path, use_index, stage):
 
 def read_train_event_id(benchmark_args):
     """Read train event id."""
-    archive_root, bm_id = __get_archive_bm_basic_info(benchmark_args)
+    archive_root, bm_id = _get_archive_bm_basic_info(benchmark_args)
 
     return fetch_train_event(archive_root, bm_id, single=True)
 
 
 def __get_wp_from_bm_args(bm_args):
-    archive_root, bm_id = __get_archive_bm_basic_info(bm_args)
+    archive_root, bm_id = _get_archive_bm_basic_info(bm_args)
     if not os.path.exists(archive_root):
         os.makedirs(archive_root)
 
@@ -243,8 +246,10 @@ def read_train_records_from_config(config, use_index="step", stage="both"):
     return read_train_records(bm_args, use_index, stage)
 
 
-def get_train_model_path_from_config(config):
+def get_train_model_path_from_config(config, task_postfix=None):
     """Get train model path from config."""
     bm_args = get_bm_args_from_config(config)
     workspace = __get_wp_from_bm_args(bm_args)
+    if task_postfix:
+        workspace += task_postfix
     return os.path.join(workspace, "models")

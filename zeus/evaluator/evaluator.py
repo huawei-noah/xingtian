@@ -9,25 +9,20 @@
 # MIT License for more details.
 
 """Evaluate used to do evaluate process."""
-import os
 import copy
 import logging
+import os
 import zeus
 from zeus.common import ClassFactory, ClassType
 from zeus.trainer.distributed_worker import DistributedWorker
 from zeus.trainer.utils import WorkerTypes
 from zeus.common import FileOps
-from zeus.report import Report
+from zeus.report import ReportClient
 from zeus.datasets import Adapter
 from .conf import EvaluatorConfig
 from zeus.model_zoo import ModelZoo
 from zeus.networks.model_config import ModelConfig
 
-
-if zeus.is_torch_backend():
-    import torch
-elif zeus.is_tf_backend():
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -105,22 +100,19 @@ class Evaluator(DistributedWorker):
         dataloader = Adapter(dataset).loader
         return dataloader
 
-    def _load_pretrained_model(self):
-        if self.model is None:
-            return
-        if zeus.is_torch_backend() and self.config.pretrained_model_file is not None:
-            model_file = self.config.pretrained_model_file
-            model_file = os.path.abspath(model_file)
-            ckpt = torch.load(model_file)
-            self.model.load_state_dict(ckpt)
-            return
-
     def load_model(self):
         """Load model."""
-        if not self.model_desc and not self.weights_file:
-            saved_folder = self.get_local_worker_path(self.step_name, self.worker_id)
-            self.weights_file = FileOps.join_path(saved_folder, 'model_{}.pth'.format(self.worker_id))
-            self.model_desc = FileOps.join_path(saved_folder, 'desc_{}.json'.format(self.worker_id))
+        self.saved_folder = self.get_local_worker_path(self.step_name, self.worker_id)
+        if not self.model_desc:
+            self.model_desc = FileOps.join_path(self.saved_folder, 'desc_{}.json'.format(self.worker_id))
+        if not self.weights_file:
+            if zeus.is_torch_backend():
+                self.weights_file = FileOps.join_path(self.saved_folder, 'model_{}.pth'.format(self.worker_id))
+            elif zeus.is_ms_backend():
+                for file in os.listdir(self.saved_folder):
+                    if file.startswith("CKP") and file.endswith(".ckpt"):
+                        self.weights_file = FileOps.join_path(self.saved_folder, file)
+
         if 'modules' not in self.model_desc:
             self.model_desc = ModelConfig.model_desc
         self.model = ModelZoo.get_model(self.model_desc, self.weights_file)
@@ -129,19 +121,19 @@ class Evaluator(DistributedWorker):
         """Check if use evaluator and get the evaluators.
 
         :return: if we used evaluator, and Evaluator classes
-        :rtype: bool, (Evaluator, GpuEvaluator, DloopEvaluator)
+        :rtype: bool, (Evaluator, HostEvaluator, DloopEvaluator)
         """
         use_evaluator = False
         cls_evaluator_set = []
-        if EvaluatorConfig.gpu_evaluator_enable:
-            cls_gpu_evaluator = ClassFactory.get_cls(ClassType.GPU_EVALUATOR, "GpuEvaluator")
+        if EvaluatorConfig.host_evaluator_enable:
+            cls_host_evaluator = ClassFactory.get_cls(ClassType.HOST_EVALUATOR, "HostEvaluator")
             use_evaluator = True
-            cls_evaluator_set.append(cls_gpu_evaluator)
-        if EvaluatorConfig.davinci_mobile_evaluator_enable:
-            cls_davinci_mobile_evaluator = ClassFactory.get_cls(
-                ClassType.DAVINCI_MOBILE_EVALUATOR, "DavinciMobileEvaluator")
+            cls_evaluator_set.append(cls_host_evaluator)
+        if EvaluatorConfig.device_evaluator_enable:
+            cls_device_evaluator = ClassFactory.get_cls(
+                ClassType.DEVICE_EVALUATOR, "DeviceEvaluator")
             use_evaluator = True
-            cls_evaluator_set.append(cls_davinci_mobile_evaluator)
+            cls_evaluator_set.append(cls_device_evaluator)
         # TODO HAVA_D_EVALUATOR
         return use_evaluator, cls_evaluator_set
 
@@ -155,7 +147,7 @@ class Evaluator(DistributedWorker):
         use_evaluator, cls_evaluator_set = self._use_evaluator()
         if not use_evaluator:
             return
-        record = Report().receive(self.step_name, self.worker_id)
+        record = ReportClient.get_record(self.step_name, self.worker_id)
         model_desc = record.desc
         for cls in cls_evaluator_set:
             evaluator = cls(worker_info=self.worker_info, model_desc=model_desc)

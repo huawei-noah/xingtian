@@ -9,6 +9,7 @@
 # MIT License for more details.
 
 """Custom functions of pytorch."""
+import math
 import torch
 import torch.nn as nn
 from torch.functional import F
@@ -25,14 +26,23 @@ class Module(nn.Module):
 
     def __init__(self):
         super(Module, self).__init__()
+        self._is_cuda = False
+        self.strict = True
 
     def initializer(self):
         """Init params."""
         pass
 
+    def load_state_dict(self, state_dict=None, strict=None, file_path=None):
+        """Load state dict from state_dict or file."""
+        state_dict = torch.load(file_path) if file_path is not None else state_dict
+        self.strict = strict if strict is not None else self.strict
+        super().load_state_dict(state_dict, self.strict)
+
     def set_parameters(self, name, value):
         """Set Parameters."""
         self.register_buffer(name, value.cuda().requires_grad_())
+        return getattr(self, name).cuda()
 
     def get_weights(self, name):
         """Get Weights."""
@@ -50,12 +60,22 @@ class Module(nn.Module):
             output = model(output)
         return output
 
+    def cuda(self, device=None):
+        """Set cuda flag."""
+        self._is_cuda = True
+        return super().cuda(device)
+
+    @property
+    def is_cuda(self):
+        """Judge is cuda."""
+        return self._is_cuda
+
     def forward(self, inputs, *args, **kwargs):
         """Call compiled function."""
         return self.call(inputs, *args, **kwargs)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class QuantizeConv2d(QuantConv2d, Module, OperatorSerializable):
     """QuantizeConv2d Module inherit nn.Module."""
 
@@ -81,7 +101,7 @@ class QuantizeConv2d(QuantConv2d, Module, OperatorSerializable):
         return output
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Conv2d(nn.Conv2d, OperatorSerializable):
     """Conv2d Module inherit nn.Module."""
 
@@ -105,7 +125,7 @@ class Conv2d(nn.Conv2d, OperatorSerializable):
                 self.bias.data.zero_()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class SeparableConv2d(nn.Module, OperatorSerializable):
     """Separable Conv2d  args."""
 
@@ -121,7 +141,7 @@ class SeparableConv2d(nn.Module, OperatorSerializable):
         return self.conv2(self.conv1(x))
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class BatchNorm2d(nn.BatchNorm2d, OperatorSerializable):
     """BatchNorm2d Module inherit nn.BatchNorm2d."""
 
@@ -134,7 +154,7 @@ class BatchNorm2d(nn.BatchNorm2d, OperatorSerializable):
         return super().forward(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MaxPool2d(nn.MaxPool2d, OperatorSerializable):
     """MaxPool2d Module inherit nn.MaxPool2d."""
 
@@ -147,7 +167,7 @@ class MaxPool2d(nn.MaxPool2d, OperatorSerializable):
         return super().forward(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AvgPool2d(nn.AvgPool2d, OperatorSerializable):
     """AvgPool2d Module inherit nn.AvgPool2d."""
 
@@ -163,7 +183,7 @@ class AvgPool2d(nn.AvgPool2d, OperatorSerializable):
         return super().forward(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Relu(nn.ReLU, OperatorSerializable):
     """Relu Module inherit nn.Relu."""
 
@@ -172,24 +192,49 @@ class Relu(nn.ReLU, OperatorSerializable):
         super(Relu, self).__init__(inplace)
 
     def forward(self, x):
-        """Do an inference on Identity."""
+        """Do an inference on Relu."""
         return super().forward(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Relu6(nn.ReLU6, OperatorSerializable):
     """Relu6 Module inherit nn.Relu6."""
 
     def __init__(self, inplace=False):
-        """Construct ReLU class."""
+        """Construct Relu6 class."""
         super(Relu6, self).__init__(inplace)
 
     def forward(self, x):
-        """Do an inference on Identity."""
+        """Do an inference on Relu6."""
         return super().forward(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
+class Hswish(nn.ReLU6, OperatorSerializable):
+    """Call Hswish."""
+
+    def __init__(self, inplace=False):
+        super(Hswish, self).__init__(inplace)
+
+    def __call__(self, x, **kwargs):
+        """Call Hswish function."""
+        return x * super().forward(x + 3.) / 6.
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class Hsigmoid(nn.ReLU6, OperatorSerializable):
+    """Call Hsigmoid."""
+
+    def __init__(self, inplace=False):
+        super(Hsigmoid, self).__init__(inplace)
+        self.inplace = inplace
+
+    def __call__(self, x, **kwargs):
+        """Call Hsigmoid function."""
+        return super().forward(x + 3.) / 6.
+
+
+@ClassFactory.register(ClassType.NETWORK)
 class AdaptiveAvgPool2d(nn.AdaptiveAvgPool2d, OperatorSerializable):
     """AdaptiveAvgPool2d Module inherit nn.AdaptiveAvgPool2d."""
 
@@ -198,24 +243,28 @@ class AdaptiveAvgPool2d(nn.AdaptiveAvgPool2d, OperatorSerializable):
         super(AdaptiveAvgPool2d, self).__init__(output_size)
 
     def forward(self, x):
-        """Do an inference on Identity."""
+        """Do an inference on AdaptiveAvgPool2d."""
         return super().forward(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Linear(nn.Linear, OperatorSerializable):
     """Linear Module inherit nn.Linear."""
 
-    def __init__(self, in_features, out_features, use_bias=True):
+    def __init__(self, in_features, out_features, use_bias=True, activation=None):
         """Construct Linear class."""
         super(Linear, self).__init__(in_features, out_features, use_bias)
+        self.activation = activation
 
     def forward(self, x):
-        """Do an inference on Identity."""
-        return super().forward(x)
+        """Do an inference on Linear."""
+        out = super().forward(x)
+        if self.activation == 'softmax':
+            return F.softmax(out)
+        return out
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Identity(nn.Module, OperatorSerializable):
     """Identity block."""
 
@@ -232,7 +281,21 @@ class Identity(nn.Module, OperatorSerializable):
         return x
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
+class Dropout(nn.Dropout, OperatorSerializable):
+    """Dropout Module inherit nn.Dropout."""
+
+    def __init__(self, prob=0.5, inplace=False):
+        """Construct Dropout class."""
+        super(Dropout, self).__init__(prob, inplace)
+
+    def forward(self, x):
+        """Do an inference on Dropout."""
+        out = super().forward(x)
+        return out
+
+
+@ClassFactory.register(ClassType.NETWORK)
 class Zero(nn.Module, OperatorSerializable):
     """Zero block."""
 
@@ -255,7 +318,7 @@ class Zero(nn.Module, OperatorSerializable):
         return x[:, :, ::self.stride, ::self.stride].mul(0.)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class View(nn.Module, OperatorSerializable):
     """View Function of torch."""
 
@@ -271,7 +334,7 @@ class View(nn.Module, OperatorSerializable):
             return inputs.view(*self.size)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class PixelShuffle(nn.PixelShuffle, OperatorSerializable):
     """PixelShuffle of torch."""
 
@@ -283,7 +346,7 @@ class PixelShuffle(nn.PixelShuffle, OperatorSerializable):
         return super().forward(inputs)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Split(nn.Module, OperatorSerializable):
     """Split of torch."""
 
@@ -297,7 +360,7 @@ class Split(nn.Module, OperatorSerializable):
         return torch.split(inputs, self.size, self.dim)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Squeeze(nn.Module, OperatorSerializable):
     """Squeeze of torch."""
 
@@ -307,10 +370,11 @@ class Squeeze(nn.Module, OperatorSerializable):
 
     def forward(self, inputs):
         """Call forward function."""
-        return torch.squeeze(inputs, self.dim)
+        # return torch.squeeze(inputs, self.dim)
+        return inputs.squeeze(self.dim)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Permute(nn.Module, OperatorSerializable):
     """Permute of torch."""
 
@@ -323,7 +387,7 @@ class Permute(nn.Module, OperatorSerializable):
         return inputs.permute(*self.size).contiguous()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Stack(nn.Module, OperatorSerializable):
     """Stack of torch."""
 
@@ -336,7 +400,7 @@ class Stack(nn.Module, OperatorSerializable):
         return torch.stack(inputs, self.dim)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Transpose(nn.Module, OperatorSerializable):
     """Class of Transpose."""
 
@@ -349,7 +413,7 @@ class Transpose(nn.Module, OperatorSerializable):
         return torch.transpose(inputs, self.dim1, self.dim2).contiguous()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class LeakyReLU(nn.LeakyReLU, OperatorSerializable):
     """Relu Module inherit nn.LeakyReLU."""
 
@@ -363,7 +427,7 @@ class LeakyReLU(nn.LeakyReLU, OperatorSerializable):
         return super().forward(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class InterpolateScale(nn.Upsample, OperatorSerializable):
     """Upsample of torch with scale_factor."""
 
@@ -376,7 +440,7 @@ class InterpolateScale(nn.Upsample, OperatorSerializable):
         return super().forward(inputs)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MeanShift(nn.Conv2d, OperatorSerializable):
     """Subtract or add rgb_mean to the image."""
 
@@ -397,12 +461,42 @@ class MeanShift(nn.Conv2d, OperatorSerializable):
         self.requires_grad = False
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
+class GlobalMaxPool1d(nn.Module):
+    """Construct the class GlobalMaxPool1d."""
+
+    def __init__(self):
+        super(GlobalMaxPool1d, self).__init__()
+
+    def forward(self, x):
+        """Call max_pool1d function."""
+        return F.max_pool1d(x, kernel_size=x.shape[2])
+
+
+@ClassFactory.register(ClassType.NETWORK)
 class MoudleList(nn.ModuleList, OperatorSerializable):
     """Class of LeakyReLU."""
 
     def __init__(self):
         super(MoudleList, self).__init__()
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class Tanh(nn.Tanh, OperatorSerializable):
+    """Class of Dropout."""
+
+    def forward(self, x):
+        """Forward Tanh."""
+        return super(Tanh, self).forward(x)
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class Embedding(nn.Embedding, OperatorSerializable):
+    """Class of Dropout."""
+
+    def forward(self, x):
+        """Call embedding."""
+        return super(Embedding, self).forward(x)
 
 
 def concat(inputs, dim=1):
@@ -413,6 +507,16 @@ def concat(inputs, dim=1):
 def mul(a, b):
     """Call mul according to backends."""
     return torch.mul(a, b)
+
+
+def cat(a, b):
+    """Call mul according to backends."""
+    return torch.mul(a, b)
+
+
+def matmul(a, b):
+    """Call matmul according to backends."""
+    return torch.matmul(a, b)
 
 
 def random_normal(*size):
@@ -491,7 +595,7 @@ def drop_path(x, prob):
 
 def zeros(shape):
     """Create zeros like shape."""
-    return torch.zeros(shape).cuda()
+    return torch.zeros(shape)
 
 
 def moduleList():
@@ -569,15 +673,15 @@ def new_ones(tensor, size, dtype=None):
         return tensor.new_ones(size, dtype=dtype)
 
 
-def arange(left, right, dtype, device):
-    """Reange from left to right."""
+def arange(*inputs, dtype='long', device=None):
+    """Rearange from left to right."""
     if dtype == 'long':
         dtype = torch.long
     elif dtype == 'uint8':
         dtype = torch.uint8
     else:
         dtype = None
-    return torch.arange(left, right, dtype=dtype, device=device)
+    return torch.arange(*inputs, dtype=dtype, device=device)
 
 
 def compare_where(cond, x, y):
@@ -598,3 +702,196 @@ def expand_as(inputs, tensor):
 def exp(tensor):
     """Return exp(tensor)."""
     return tensor.exp()
+
+
+def pow(input, exponent, out=None):
+    """Calculate the exponent value of the input by element and returns the result tensor."""
+    return torch.pow(input, exponent, out=out)
+
+
+def ones(input_size, out=None):
+    """Return a tensor with all 1s. The shape is defined by the variable parameter size."""
+    return torch.ones(input_size, out=out)
+
+
+def ones_like(out):
+    """Return a tensor with all 1s. The shape is defined by the variable parameter size."""
+    return torch.ones_like(out)
+
+
+def zeros_like(out):
+    """Return a tensor with all 1s. The shape is defined by the variable parameter size."""
+    return torch.zeros_like(out)
+
+
+def one_hot(inputs, num_classes, dtype=None):
+    """Take LongTensor with index values of shape."""
+    return F.one_hot(inputs, num_classes)
+
+
+def to(input, dtype):
+    """Convert input to dtype."""
+    if dtype == 'long':
+        dtype = torch.long
+    elif dtype == 'uint8':
+        dtype = torch.uint8
+    elif dtype == 'float32':
+        dtype = torch.float32
+    return input.to(dtype)
+
+
+def reduce_sum(input, dim=0, dtype=None):
+    """Apply sum function."""
+    if dtype == 'long':
+        dtype = torch.long
+    elif dtype == 'uint8':
+        dtype = torch.uint8
+    elif dtype == 'float32':
+        dtype = torch.float32
+    return torch.sum(input, dim=dim, dtype=dtype)
+
+
+def gelu(x):
+    """Apply gelu function."""
+    return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
+
+
+def swish(x):
+    """Apply swish function."""
+    return x * torch.sigmoid(x)
+
+
+def relu(x, inplace=False):
+    """Apply relu function."""
+    return F.relu(x, inplace)
+
+
+def sqrt(x):
+    """Apply sqrt function."""
+    return torch.sqrt(x)
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class LayerNorm(Module, OperatorSerializable):
+    """Layer Norm module."""
+
+    def __init__(self, hidden_size, eps=1e-12):
+        """Construct a layernorm module in the TF style (epsilon inside the square root)."""
+        super(LayerNorm, self).__init__()
+        self.weight = self.set_parameters('gamma', ones(hidden_size))
+        self.bias = self.set_parameters('beta', zeros(hidden_size))
+        self.variance_epsilon = eps
+
+    def call(self, x):
+        """Call LayerNorm."""
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / sqrt(s + self.variance_epsilon)
+        return self.weight * x + self.bias
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class GroupNorm(nn.GroupNorm, OperatorSerializable):
+    """GroupNorm Module inherit nn.GroupNorm."""
+
+    def __init__(self, num_groups, num_channels, eps=1e-5, affine=True):
+        """Construct Identity class."""
+        super(GroupNorm, self).__init__(num_groups, num_channels, eps, affine)
+
+    def forward(self, x):
+        """Do an inference on Identity."""
+        return super().forward(x)
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class SyncBatchNorm(nn.SyncBatchNorm, OperatorSerializable):
+    """SyncBatchNorm Module inherit nn.SyncBatchNorm."""
+
+    def __init__(self, num_features, eps=1e-5, momentum=0.1, affine=True,
+                 track_running_stats=True, process_group=None):
+        """Construct Identity class."""
+        super(SyncBatchNorm, self).__init__(num_features, eps, momentum, affine, track_running_stats, process_group)
+
+    def forward(self, x):
+        """Do an inference on Identity."""
+        return super().forward(x)
+
+
+def conv_ws_2d(input,
+               weight,
+               bias=None,
+               stride=1,
+               padding=0,
+               dilation=1,
+               groups=1,
+               eps=1e-5):
+    """Conv2d with weight standarlization.
+
+    :param input: input feature map
+    :type input: torch.Tensor
+    :param weight: weight of conv layer
+    :type weight: torch.Tensor
+    :param bias: bias
+    :type bias: torch.Tensor
+    :param stride: conv stride
+    :type stride: int
+    :param padding: num of padding
+    :type padding: int
+    :param dilation: num of dilation
+    :type dilation: int
+    :param groups: num of group
+    :type groups: int
+    :param eps: weight eps
+    :type eps: float
+    :return: feature map after weight standarlization
+    :rtype: torch.Tensor
+    """
+    c_in = weight.size(0)
+    weight_flat = weight.view(c_in, -1)
+    mean = weight_flat.mean(dim=1, keepdim=True).view(c_in, 1, 1, 1)
+    std = weight_flat.std(dim=1, keepdim=True).view(c_in, 1, 1, 1)
+    weight = (weight - mean) / (std + eps)
+    return F.conv2d(input, weight, bias, stride, padding, dilation, groups)
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class ConvWS2d(nn.Conv2d):
+    """Conv2d with weight standarlization."""
+
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 dilation=1,
+                 groups=1,
+                 bias=True,
+                 eps=1e-5):
+        """Init conv2d with weight standarlization.
+
+        :param in_channels: input channels
+        :param out_channels: output channels
+        :param kernel_size: kernel size
+        :param stride: stride
+        :param padding: num of padding
+        :param dilation: num of dilation
+        :param groups: num of groups
+        :param bias: bias
+        :param eps: eps
+        """
+        super(ConvWS2d, self).__init__(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias)
+        self.eps = eps
+
+    def forward(self, x):
+        """Forward function of conv2d with weight standarlization."""
+        return conv_ws_2d(x, self.weight, self.bias, self.stride, self.padding,
+                          self.dilation, self.groups, self.eps)

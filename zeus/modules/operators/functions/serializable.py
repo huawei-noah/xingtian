@@ -36,7 +36,8 @@ class Serializable(object):
         instance = super(Serializable, cls).__new__(cls)
         instance._deep_level = 0
         instance._target_level = None
-        instance.desc = Config(desc)
+        if desc:
+            instance.desc = Config(desc)
         return instance
 
     def to_desc(self, level=None):
@@ -71,6 +72,11 @@ class Serializable(object):
         """Return model name."""
         return self.__class__.__name__
 
+    def define_props(self, key, default_value, dtype=None, params=None):
+        """Define a prop and get value."""
+        value = self.desc.get(key) or default_value
+        return Props(key, value, dtype, params).value
+
 
 class OperatorSerializable(Serializable):
     """Seriablizable for Operator class."""
@@ -87,7 +93,7 @@ class OperatorSerializable(Serializable):
     @classmethod
     def from_desc(cls, desc):
         """Create Operator class by desc."""
-        return ClassFactory.get_instance(ClassType.SEARCH_SPACE, desc)
+        return ClassFactory.get_instance(ClassType.NETWORK, desc)
 
 
 class ModuleSerializable(Serializable):
@@ -130,9 +136,12 @@ class ModuleSerializable(Serializable):
     @classmethod
     def from_desc(cls, desc):
         """Create Model from desc."""
-        module_groups = desc.get('modules')
+        desc = deepcopy(desc)
+        module_groups = desc.get('modules', [])
         module_type = desc.get('type', 'Sequential')
         loss = desc.get('loss')
+        if 'props' in desc:
+            Props.update(desc.pop('props'))
         modules = OrderedDict()
         for group_name in module_groups:
             module_desc = deepcopy(desc.get(group_name))
@@ -140,15 +149,68 @@ class ModuleSerializable(Serializable):
                 module = cls.from_desc(module_desc)
             else:
                 cls_name = module_desc.get('type')
-                if not ClassFactory.is_exists(ClassType.SEARCH_SPACE, cls_name):
-                    return None
-                module = ClassFactory.get_instance(ClassType.SEARCH_SPACE, module_desc)
+                if not ClassFactory.is_exists(ClassType.NETWORK, cls_name):
+                    raise ValueError("Network {} not exists.".format(cls_name))
+                module = ClassFactory.get_instance(ClassType.NETWORK, module_desc)
             modules[group_name] = module
-        if ClassFactory.is_exists(SearchSpaceType.CONNECTIONS, module_type):
-            connections = ClassFactory.get_cls(SearchSpaceType.CONNECTIONS, module_type)
+        if not module_groups and module_type:
+            model = ClassFactory.get_instance(ClassType.NETWORK, desc)
         else:
-            connections = ClassFactory.get_cls(SearchSpaceType.CONNECTIONS, 'Sequential')
-        model = list(modules.values())[0] if len(modules) == 1 else connections(modules)
+            if ClassFactory.is_exists(SearchSpaceType.CONNECTIONS, module_type):
+                connections = ClassFactory.get_cls(SearchSpaceType.CONNECTIONS, module_type)
+            else:
+                connections = ClassFactory.get_cls(SearchSpaceType.CONNECTIONS, 'Sequential')
+            model = list(modules.values())[0] if len(modules) == 1 else connections(modules)
         if loss:
             model.add_loss(ClassFactory.get_cls(ClassType.LOSS, loss))
         return model
+
+
+class Props(object):
+    """Set proxy property in module.
+
+    When a variable is changed by an external program, the value of the invoker can be changed synchronously.
+    """
+
+    _values = {}
+
+    def __init__(self, key, default_value, d_type=None, params=None):
+        self.key = key
+        self.default_value = default_value
+        self.d_type = d_type
+        self.params = params
+        self._add_prop()
+        self._check()
+
+    def _add_prop(self):
+        if self.key in self._values and self._values.get(self.key):
+            result = self._values.get(self.key)
+        else:
+            result = self.default_value
+            self._values[self.key] = self.default_value
+        return result
+
+    @property
+    def value(self):
+        """Get values."""
+        value = self._values.get(self.key)
+        if self.d_type == ClassType.NETWORK:
+            if isinstance(value, str):
+                cls = ClassFactory.get_cls(ClassType.NETWORK, value)
+                value = cls() if self.params is None else cls(**self.params)
+            else:
+                value = ClassFactory.get_instance(ClassType.NETWORK, value)
+        return value
+
+    @classmethod
+    def update(cls, props):
+        """Update props."""
+        cls._values.update(props)
+
+    def _check(self):
+        if self.d_type is None:
+            return
+
+    def reset(self):
+        """Reset props."""
+        self._values = {}

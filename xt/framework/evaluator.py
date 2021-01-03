@@ -20,6 +20,7 @@
 """Evaluate worker."""
 
 import sys
+import setproctitle
 from copy import deepcopy
 from absl import logging
 from xt.framework.agent_group import AgentGroup
@@ -44,22 +45,26 @@ class Evaluator(object):
 
     def start(self):
         """Run evaluator."""
-        _ag = AgentGroup(self.env_para, self.alg_para, self.agent_para)
+        setproctitle.setproctitle("xt_evaluator")
+
+        _ags = AgentGroup(self.env_para, self.alg_para, self.agent_para, scene="evaluate")
         while True:
             recv_data = self.recv_broker.get()
             cmd = get_msg_info(recv_data, "cmd")
             logging.debug("evaluator get meg: {}".format(type(recv_data)))
+            if cmd in ("close", ):
+                break
+
             if cmd not in ["eval"]:
-                # print_immediately("eval get un-used data:{}".format(recv_data))
+                print_immediately("eval get un-used data:{}".format(recv_data))
                 continue
 
             # print_immediately("recv_data in evaluator: {}".format(
             #     [v.keys() for v in recv_data["data"].values()]))
 
             for train_count, weights in recv_data["data"].items():
-
-                _ag.restore(weights, is_id=False)
-                eval_data = _ag.evaluate(self.bm_eval.get("episodes_per_eval", 1))
+                _ags.restore(weights, is_id=False)
+                eval_data = _ags.evaluate(self.bm_eval.get("episodes_per_eval", 1))
 
                 # return each rewards for each agent
                 record_item = tuple([eval_data,
@@ -69,7 +74,7 @@ class Evaluator(object):
                 print_immediately("collect eval results: {}".format(record_item))
                 record_item = message(
                     record_item,
-                    cmd="eval_result",
+                    cmd="eval_return",
                     broker_id=self.broker_id,
                     test_id=self.test_id,
                 )

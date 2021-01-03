@@ -13,62 +13,76 @@ from zeus.common import ClassType, ClassFactory
 from zeus.modules.operators import ops
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 def conv3x3(inchannel, outchannel, groups=1, stride=1, bias=False, dilation=1):
     """Create conv3x3 layer."""
     return ops.Conv2d(inchannel, outchannel, kernel_size=3, stride=stride,
                       padding=dilation, groups=groups, bias=bias, dilation=dilation)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 def conv1X1(inchannel, outchannel, stride=1):
     """Create conv1X1 layer."""
     return ops.Conv2d(inchannel, outchannel, kernel_size=1, stride=stride, bias=False)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 def conv5x5(inchannel, outchannel, stride=1, bias=False, dilation=1):
     """Create Convolution 5x5."""
     return ops.Conv2d(inchannel, outchannel, kernel_size=5, stride=stride,
                       padding=2, dilation=dilation, bias=bias)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 def conv7x7(inchannel, outchannel, stride=1, bias=False, dilation=1):
     """Create Convolution 7x7."""
     return ops.Conv2d(inchannel, outchannel, kernel_size=7, stride=stride,
                       padding=3, dilation=dilation, bias=bias)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 def conv_bn_relu6(C_in, C_out, kernel_size=3, stride=1, padding=0, affine=True):
     """Create group of Convolution + BN + Relu6 function."""
     return ConvBnRelu(C_in, C_out, kernel_size, stride, padding, affine=affine, use_relu6=True)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 def conv_bn_relu(C_in, C_out, kernel_size, stride, padding, affine=True):
     """Create group of Convolution + BN + Relu function."""
     return ConvBnRelu(C_in, C_out, kernel_size, stride, padding, affine=affine)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ConvBnRelu(ops.Module):
     """Create group of Convolution + BN + Relu."""
 
-    def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True, use_relu6=False):
+    def __init__(self, C_in, C_out, kernel_size, stride, padding, Conv2d='Conv2d', affine=True, use_relu6=False,
+                 norm_layer='BN',
+                 has_bn=True, has_relu=True, **kwargs):
         """Construct ConvBnRelu class."""
         super(ConvBnRelu, self).__init__()
-        self.conv2d = ops.Conv2d(
-            C_in, C_out, kernel_size, stride=stride, padding=padding, bias=False)
-        self.batch_norm2d = ops.BatchNorm2d(C_out, affine=affine)
-        if use_relu6:
-            self.relu = ops.Relu6(inplace=False)
-        else:
-            self.relu = ops.Relu(inplace=False)
+        if Conv2d == 'Conv2d':
+            self.conv2d = ops.Conv2d(
+                C_in, C_out, kernel_size, stride=stride, padding=padding, bias=False)
+        elif Conv2d == 'ConvWS2d':
+            self.conv2d = ops.ConvWS2d(
+                C_in, C_out, kernel_size, stride=stride, padding=padding, bias=False)
+        if has_bn:
+            if norm_layer == 'BN':
+                self.batch_norm2d = ops.BatchNorm2d(C_out, affine=affine)
+            elif norm_layer == 'GN':
+                num_groups = kwargs.pop('num_groups')
+                self.batch_norm2d = ops.GroupNorm(num_groups, C_out, affine=affine)
+            elif norm_layer == 'Sync':
+                self.batch_norm2d = ops.SyncBatchNorm(C_out, affine=affine)
+        if has_relu:
+            if use_relu6:
+                self.relu = ops.Relu6(inplace=False)
+            else:
+                self.relu = ops.Relu(inplace=False)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class SeparatedConv(ops.Module):
     """Separable convolution block with repeats."""
 
@@ -84,7 +98,7 @@ class SeparatedConv(ops.Module):
             self.add_module('{}_relu'.format(idx), ops.Relu(inplace=False))
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class DilConv(ops.Module):
     """Separable convolution block with repeats."""
 
@@ -121,7 +135,7 @@ class GAPConv1x1(ops.Module):
         return out
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class FactorizedReduce(ops.Module):
     """Factorized reduce block."""
 
@@ -147,7 +161,7 @@ class FactorizedReduce(ops.Module):
         return out
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ReLUConvBN(ops.Module):
     """Class of ReLU + Conv + BN."""
 
@@ -159,7 +173,7 @@ class ReLUConvBN(ops.Module):
         self.bn = ops.BatchNorm2d(C_out, affine=affine)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Seq(ops.Module):
     """Separable convolution block with repeats."""
 

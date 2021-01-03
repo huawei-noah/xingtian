@@ -60,7 +60,7 @@ class TypeCheck(BaseChecking):
         if attr_name not in config:
             return
         if not isinstance(config[attr_name], rules["type"]):
-            raise Exception("{} in {}attr must be type: {}".format(
+            raise Exception("{} in {} attr must be type: {}".format(
                 attr_name, checked_cls_name, rules["type"]))
 
 

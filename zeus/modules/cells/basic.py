@@ -14,7 +14,7 @@ from zeus.modules.connections import Repeat
 from zeus.modules.module import Module
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class VariantCell(Module):
     """Create VariantLayer SearchSpace."""
 
@@ -44,7 +44,7 @@ class VariantCell(Module):
         self.layers = Repeat(num_reps=num_reps, items=items, ref=block)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class BasicCell(Module):
     """Create BasicLayer SearchSpace."""
 

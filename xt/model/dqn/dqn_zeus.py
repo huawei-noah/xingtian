@@ -22,13 +22,14 @@ from xt.model.model_zeus import XTModelZeus
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
 from zeus import set_backend, register_zeus
-from zeus.trainer_api import Trainer
+from zeus.trainer.trainer_api import Trainer
 from zeus.common.class_factory import ClassFactory, ClassType
 from zeus.trainer.modules.conf.loss import LossConfig
 from zeus.trainer.modules.conf.optim import OptimConfig
 
 set_backend(backend='tensorflow', device_category='GPU')
 register_zeus('tensorflow')
+
 
 @Registers.model
 class DqnZeus(XTModelZeus):
@@ -46,7 +47,7 @@ class DqnZeus(XTModelZeus):
         model_config = model_info['model_config']
         zeus_model_name = model_config['zeus_model_name']
 
-        model_cls = ClassFactory.get_cls(ClassType.SEARCH_SPACE, zeus_model_name)
+        model_cls = ClassFactory.get_cls(ClassType.NETWORK, zeus_model_name)
         zeus_model = model_cls(state_dim=self.state_dim, action_dim=self.action_dim)
         # zeus_model = DqnMlpNet(state_dim=self.state_dim, action_dim=self.action_dim)
 

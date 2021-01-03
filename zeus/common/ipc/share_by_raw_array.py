@@ -68,7 +68,7 @@ class ShareByRawArray(object):
 
         return data
 
-    def recv_bytes(self):
+    def recv_bytes(self, block):
         """Get data from share memory without deserialize."""
         data_id, len_data = self.control_q.get()
 

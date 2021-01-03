@@ -10,12 +10,11 @@
 
 """Quantized Convlution."""
 import logging
-import zeus
 from zeus.modules.operators import ops, quant
 from zeus.common import ClassFactory, ClassType
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Quantizer(object):
     """Model Quantization class."""
 
@@ -44,11 +43,6 @@ class Quantizer(object):
         quant_model = quant.QuantConv(model.in_channels, model.out_channels, model.kernel_size,
                                       model.stride, model.padding, model.dilation, model.groups, model.bias)
         quant_model.build(nbit_w=nbit_w, nbit_a=nbit_a)
-        if zeus.is_torch_backend():
-            if nbit_w == 8:
-                quant_model = ops.QuantizeConv2d(model.in_channels, model.out_channels, model.kernel_size,
-                                                 model.stride, model.padding, model.dilation, model.groups,
-                                                 quant_bit=nbit_w)
         return quant_model
 
     def __call__(self):
@@ -63,7 +57,8 @@ class Quantizer(object):
             if is_first_conv:
                 is_first_conv = False
                 continue
-            quant_conv = self._quant_conv(layer)
+            if layer.groups == 1:
+                quant_conv = self._quant_conv(layer)
             self.model.set_module(name, quant_conv)
         return self.model
 

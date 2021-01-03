@@ -1,6 +1,7 @@
 alg_para:
   alg_name: DQN
   alg_config: {
+    'train_per_checkpoint': 10,
     'prepare_times_per_train': 4,
     'learning_starts': 100,
     'save_model': True,

@@ -35,7 +35,7 @@ class FashionMnist(FashionMNIST, Dataset):
         Dataset.__init__(self, **kwargs)
         self.args.data_path = FileOps.download_dataset(self.args.data_path)
         FashionMNIST.__init__(self, root=self.args.data_path, train=self.train,
-                              transform=Compose(self.transforms.__transform__), download=self.args.download)
+                              transform=self.transforms, download=self.args.download)
 
     @property
     def input_channels(self):

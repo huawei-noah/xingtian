@@ -89,7 +89,7 @@ def mask_cross_entropy(pred, target, label, reduction='mean', avg_factor=None):
     return F.binary_cross_entropy_with_logits(pred_slice, target, reduction='mean')[None]
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class CustomCrossEntropyLoss(Module):
     """Cross Entropy Loss."""
 

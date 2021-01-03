@@ -66,3 +66,14 @@ def dynamic_optimizer(optimizer_class, **params):
             optimizer_class.__init__(self, **kwargs)
             OptimizerStep.__init__(self, learning_rate=learning_rate, weight_decay=weight_decay)
     return DynamicOptimizer(**params)
+
+
+def dynamic_distributed_optimizer(optimizer_class, optimizer):
+    """Dynamically choose distributed optimizer."""
+    class DynamicDistributedOptimizer(optimizer_class, OptimizerStep):
+        """Dynamic distributed optimizer for tensorflow."""
+
+        def __init__(self, optimizer):
+            optimizer_class.__init__(self, optimizer)
+            OptimizerStep.__init__(self, learning_rate=optimizer.base_lr, weight_decay=optimizer.weight_decay)
+    return DynamicDistributedOptimizer(optimizer)

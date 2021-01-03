@@ -71,15 +71,13 @@ class CallbackList(object):
         defaults = []
         if zeus.is_torch_backend():
             defaults = ["ModelStatistics", "MetricsEvaluator", "ModelCheckpoint", "ModelBuilder", "PerformanceSaver",
-                        "RuntimeCallback", "LearningRateScheduler", "ProgressLogger", "ReportCallback",
-                        "VisualCallBack"
-                        ]
+                        "RuntimeCallback", "LearningRateScheduler", "ProgressLogger", "ReportCallback", ]
         elif zeus.is_tf_backend():
             defaults = ["ModelStatistics", "MetricsEvaluator", "ModelCheckpoint", "ModelBuilder", "PerformanceSaver",
-                        "RuntimeCallback", "ProgressLogger", "ReportCallback", "VisualCallBack"]
+                        "RuntimeCallback", "ProgressLogger", "ReportCallback", ]
         elif zeus.is_ms_backend():
             defaults = ["ModelStatistics", "MetricsEvaluator", "ModelCheckpoint", "ModelBuilder", "PerformanceSaver",
-                        "ProgressLogger", "ReportCallback", "VisualCallBack"]
+                        "ProgressLogger", "ReportCallback", ]
 
         custom_disables = []
         disables = disables if disables else []

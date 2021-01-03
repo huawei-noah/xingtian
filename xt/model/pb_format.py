@@ -20,7 +20,7 @@
 """Save model in pb file format."""
 
 import os
-import tensorflow as tf
+from xt.model.tf_compat import tf
 from tensorflow.python.framework import graph_util, graph_io
 from xt.model.tf_compat import K
 

@@ -14,6 +14,7 @@ from collections import OrderedDict
 from zeus.common import ClassFactory, ClassType, SearchSpaceType
 from zeus.common import update_dict_with_flatten_keys
 from zeus.modules.module import Module
+from zeus.modules.operators import ops
 
 
 class ConnectionsDecorator(Module):
@@ -68,6 +69,36 @@ class Sequential(ConnectionsDecorator):
         return output
 
 
+@ClassFactory.register(SearchSpaceType.CONNECTIONS)
+class MultiOutputGetter(Module):
+    """Get output layer by layer names and connect into a OrderDict."""
+
+    def __init__(self, model, layer_names):
+        super(MultiOutputGetter, self).__init__(model)
+        if not layer_names or not set(layer_names).issubset([name for name, _ in model.named_children()]):
+            raise ValueError("layer_names are not present in model")
+        if isinstance(layer_names, list):
+            layer_names = {v: k for k, v in enumerate(layer_names)}
+        self.output_layers = OrderedDict()
+        for name, module in model.named_children():
+            if not layer_names:
+                break
+            self.add_module(name, module)
+            if name in layer_names:
+                layer_name = layer_names.pop(name)
+                self.output_layers[name] = layer_name
+
+    def call(self, inputs):
+        """Override call function, connect models into a OrderedDict."""
+        output = inputs
+        outs = OrderedDict()
+        for name, model in self.named_children():
+            output = model(output)
+            if name in self.output_layers:
+                outs[self.output_layers[name]] = output
+        return outs
+
+
 class ModuleList(Module):
     """Class of LeakyReLU."""
 
@@ -113,6 +144,10 @@ class MultiOutput(ConnectionsDecorator):
         super(MultiOutput, self).__init__(*models)
         self.out_func = out_func
 
+    def add(self, module):
+        """Add a module into MultiOutput."""
+        self.add_module(str(len(self._modules.values())), module)
+
     def call(self, inputs):
         """Override compile function, connect models into a seq."""
         models = list(self.children())
@@ -126,6 +161,25 @@ class MultiOutput(ConnectionsDecorator):
         if self.out_func is not None:
             outputs = self.out_func(outputs)
         return outputs
+
+
+@ClassFactory.register(SearchSpaceType.CONNECTIONS)
+class Concat(MultiOutput):
+    """Create Lambda for forward x."""
+
+    def __init__(self, *models):
+        super(Concat, self).__init__(*models)
+        self.out_func = ops.concat
+
+    def call(self, inputs):
+        """Override compile function, connect models into a seq."""
+        models = list(self.children())
+        if not models:
+            return None
+        outputs = []
+        for idx, model in enumerate(models):
+            outputs.append(model(inputs))
+        return ops.concat(outputs)
 
 
 @ClassFactory.register(SearchSpaceType.CONNECTIONS)
@@ -160,7 +214,7 @@ class ProcessList(ConnectionsDecorator):
         return output
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Repeat(Module):
     """Repeat SearchSpace."""
 
@@ -195,7 +249,7 @@ def create_module(model):
         module_type = model.get('type')
         module_param = deepcopy(model)
         module_param.pop('type')
-        module = ClassFactory.get_cls(ClassType.SEARCH_SPACE, module_type)
+        module = ClassFactory.get_cls(ClassType.NETWORK, module_type)
         return module_type, module(**module_param)
 
 
@@ -236,7 +290,7 @@ class Cells(Module):
             params['C_prev'] = self.C_prev
             params['C'] = self.C_curr
             reduction_prev = reduction
-            model = ClassFactory.get_instance(ClassType.SEARCH_SPACE, params)
+            model = ClassFactory.get_instance(ClassType.NETWORK, params)
             self.add_module(str(idx), model)
             concat_size = model.concat_size if hasattr(model, 'concat_size') else 1
             self.C_prev_prev, self.C_prev = self.C_prev, concat_size * self.C_curr

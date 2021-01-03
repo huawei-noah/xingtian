@@ -92,7 +92,7 @@ class ShareBuf(object):
                            reverse=True)
 
         over_ids.extend(_val[0] for _val in sorted_id[self.max_keep:])
-        logging.debug("over_ids: {}".format(over_ids))
+        # logging.debug("over_ids: {}".format(over_ids))
         return over_ids
 
     def _get_vanish_obj(self):
@@ -132,23 +132,23 @@ class ShareBuf(object):
         """Put data buffer for share."""
         client = self.connect()
         object_id = client.put_raw_buffer(data_buffer)
-        logging.debug("put buffer with id: {}".format(object_id))
+        # logging.debug("put buffer with id: {}".format(object_id))
         self._init_obj(object_id.binary(), special_live)
 
         # del data within the vanish Queue
         ready_vanish_ids = self._get_vanish_obj()
         if ready_vanish_ids:
-            logging.debug("delete: {}, vanish queue.size: {}, odd: {}".format(
-                ready_vanish_ids, self.to_vanish.qsize(), len(self.live_info)))
+            # logging.debug("delete: {}, vanish queue.size: {}, odd: {}".format(
+            #     ready_vanish_ids, self.to_vanish.qsize(), len(self.live_info)))
             client.delete(ready_vanish_ids)
-        else:
-            logging.debug("odd:{}".format(len(self.live_info)))
+        # else:
+        #     logging.debug("odd:{}".format(len(self.live_info)))
         # print("list plasma: ", client.list())
         return object_id.binary()
 
     def _get_buf(self, obj_id, retry=5):
         object_id = plasma.ObjectID(bytes(obj_id))
-        logging.debug("get buffer: {}".format(object_id))
+        # logging.debug("get buffer: {}".format(object_id))
         buf = None
         # may instability.
         for _t in range(retry):
@@ -188,16 +188,9 @@ class ShareBuf(object):
         try:
             client = plasma.connect(self.path, int_num_retries=3)
         except:
-            Popen(
-                "plasma_store -m {} -s {}".format(self.size_shared_mem, self.path),
-                shell=True,
-                stderr=PIPE,
-            )
-            logging.info(
-                "Share buf: plasma_store -m {} -s {} is activated!".format(
-                    self.size_shared_mem, self.path
-                )
-            )
+            cmd_str = "plasma_store -m {} -s {}".format(self.size_shared_mem, self.path)
+            Popen(cmd_str, shell=True, stderr=PIPE)
+            logging.info("share buf: {}".format(cmd_str))
             time.sleep(0.1)
 
     def connect(self):

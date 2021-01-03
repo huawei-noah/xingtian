@@ -15,6 +15,8 @@ from zeus.common.config import Config
 from zeus.common.class_factory import ClassType, ClassFactory
 from zeus.modules.operators.functions.serializable import OperatorSerializable
 from zeus.common.general import General
+from zeus.modules.operators.functions.pytorch_to_tf import assign_pytorch_weights
+import numpy as np
 
 enable_scope_name = True
 
@@ -31,6 +33,11 @@ class Module(object):
         self._training = True
         self.enable_scope_name = enable_scope_name
         self.data_format = General.data_format
+        self.pretrained_model_file = None
+        self._is_load_pretrained = False
+        self.load_pretrained_type = None
+        self._trainable = True
+        self.pretrained_prefix = None
 
     def add_module(self, name, model):
         """Add models into self._models."""
@@ -58,6 +65,22 @@ class Module(object):
                     self._scope_name, model.parent_scope_name) if self._scope_name else model.parent_scope_name
             yield model
 
+    def pretrained(self, pretrained_model_file=None):
+        """Load Pretrained weights."""
+        if self._is_load_pretrained:
+            return []
+        assign_vars = []
+        checkpoint_path = pretrained_model_file or self.pretrained_model_file
+        if not checkpoint_path:
+            return
+        pretrained_prefix = self.pretrained_prefix or {self._scope_name: self._scope_name}
+        if self.load_pretrained_type == 'pytorch':
+            assign_vars = assign_pytorch_weights(checkpoint_path, pretrained_prefix)
+        else:
+            tf.train.init_from_checkpoint(checkpoint_path, pretrained_prefix)
+        self._is_load_pretrained = True
+        return assign_vars
+
     @property
     def training(self):
         """Get training flag."""
@@ -70,9 +93,22 @@ class Module(object):
         for module in self.children():
             module.training = value
 
+    @property
+    def freeze(self):
+        """Get training flag."""
+        return self.freeze
+
+    @freeze.setter
+    def freeze(self, value):
+        """Set training flag."""
+        self._trainable = not value
+        for module in self.children():
+            module.freeze = value
+
     def __setattr__(self, key, value):
         """Set name to modules."""
         self.__dict__[key] = value
+        # super().__setattr__(key, value)
         if isinstance(value, Module):
             if self.enable_scope_name:
                 value.parent_scope_name = key
@@ -146,7 +182,7 @@ class Initial(object):
         return tf.variance_scaling_initializer()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class QuantizeConv2d(OperatorSerializable):
     """QuantizeConv2d Module inherit nn.Module."""
 
@@ -160,7 +196,7 @@ class QuantizeConv2d(OperatorSerializable):
         return inputs
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Conv2d(Module, OperatorSerializable):
     """Fuse and unified conv2d args."""
 
@@ -188,25 +224,26 @@ class Conv2d(Module, OperatorSerializable):
         initializer = self.kernel_initial(inputs)
         with tf.variable_scope(self._scope_name, reuse=tf.AUTO_REUSE):
             if self.dilation > 1:
-                return tf.keras.layers.SeparableConv2D(filters=self.out_channels,
-                                                       kernel_size=self.kernel_size,
-                                                       strides=self.stride,
-                                                       data_format=self.data_format,
-                                                       dilation_rate=self.dilation,
-                                                       padding=self.padding_mode,
-                                                       use_bias=self.bias,
-                                                       name='Conv2d')(inputs=inputs)
+                conv2d = tf.keras.layers.SeparableConv2D(filters=self.out_channels,
+                                                         kernel_size=self.kernel_size,
+                                                         strides=self.stride,
+                                                         data_format=self.data_format,
+                                                         dilation_rate=self.dilation,
+                                                         padding=self.padding_mode,
+                                                         use_bias=self.bias,
+                                                         name='Conv2d', trainable=self._trainable)
             else:
-                return tf.keras.layers.Conv2D(filters=self.out_channels,
-                                              kernel_size=self.kernel_size,
-                                              kernel_initializer=initializer,
-                                              bias_initializer=self.bias_initial,
-                                              strides=self.stride,
-                                              data_format=self.data_format,
-                                              dilation_rate=self.dilation,
-                                              padding=self.padding_mode,
-                                              use_bias=self.bias,
-                                              name='Conv2d')(inputs=inputs)
+                conv2d = tf.keras.layers.Conv2D(filters=self.out_channels,
+                                                kernel_size=self.kernel_size,
+                                                kernel_initializer=initializer,
+                                                bias_initializer=self.bias_initial,
+                                                strides=self.stride,
+                                                data_format=self.data_format,
+                                                dilation_rate=self.dilation,
+                                                padding=self.padding_mode,
+                                                use_bias=self.bias,
+                                                name='Conv2d', trainable=self._trainable)
+            return conv2d(inputs=inputs)
 
     def initial(self, kernel_mode='he', bias_mode='zero', kernel_scale=1., bias_scale=1.):
         """Initialize weight and bias."""
@@ -216,7 +253,7 @@ class Conv2d(Module, OperatorSerializable):
             self.bias_initial = tf.zeros_initializer()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class SeparableConv2d(Module, OperatorSerializable):
     """Separable Conv2d args."""
 
@@ -233,19 +270,20 @@ class SeparableConv2d(Module, OperatorSerializable):
     def __call__(self, input, **kwargs):
         """Call separable_conv2d function."""
         with tf.variable_scope(self._scope_name, reuse=tf.AUTO_REUSE):
-            return tf.keras.layers.SeparableConv2D(filters=self.out_channels,
-                                                   kernel_size=self.kernel_size,
-                                                   strides=self.stride,
-                                                   data_format=self.data_format,
-                                                   dilation_rate=self.dilation,
-                                                   depthwise_initializer=tf.variance_scaling_initializer(),
-                                                   pointwise_initializer=tf.variance_scaling_initializer(),
-                                                   padding='SAME', use_bias=self.bias,
-                                                   name='SeparableConv2d',
-                                                   reuse=self.reuse)(inputs=input)
+            model = tf.keras.layers.SeparableConv2D(filters=self.out_channels,
+                                                    kernel_size=self.kernel_size,
+                                                    strides=self.stride,
+                                                    data_format=self.data_format,
+                                                    dilation_rate=self.dilation,
+                                                    depthwise_initializer=tf.variance_scaling_initializer(),
+                                                    pointwise_initializer=tf.variance_scaling_initializer(),
+                                                    padding='SAME', use_bias=self.bias,
+                                                    name='SeparableConv2d',
+                                                    reuse=self.reuse, trainable=self._trainable)
+            return model(inputs=input)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MaxPool2d(Module, OperatorSerializable):
     """Fuse and unified MaxPool2d args."""
 
@@ -258,11 +296,13 @@ class MaxPool2d(Module, OperatorSerializable):
     def __call__(self, input, **kwargs):
         """Call MaxPooling2D function."""
         with tf.variable_scope(self._scope_name, reuse=tf.AUTO_REUSE):
-            return tf.layers.MaxPooling2D(pool_size=self.kernel_size, strides=self.stride,
-                                          data_format=self.data_format, padding='SAME', name='MaxPool2d')(input)
+            model = tf.layers.MaxPooling2D(pool_size=self.kernel_size, strides=self.stride,
+                                           data_format=self.data_format, padding='SAME', name='MaxPool2d',
+                                           trainable=self._trainable)
+            return model((input))
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Zero(Module, OperatorSerializable):
     """Class of Zero operation."""
 
@@ -281,7 +321,7 @@ class Zero(Module, OperatorSerializable):
             return tf.zeros_like(x)[:, ::self.stride, ::self.stride, :]
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class View(Module, OperatorSerializable):
     """Call squeeze."""
 
@@ -301,7 +341,7 @@ class View(Module, OperatorSerializable):
             return tf.reshape(inputs, self.size)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Relu(Module, OperatorSerializable):
     """Call relu."""
 
@@ -314,7 +354,7 @@ class Relu(Module, OperatorSerializable):
         return tf.nn.relu(input)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Relu6(Module, OperatorSerializable):
     """Call relu6."""
 
@@ -327,7 +367,33 @@ class Relu6(Module, OperatorSerializable):
         return tf.nn.relu6(input)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
+class Hswish(Module, OperatorSerializable):
+    """Call Hswish."""
+
+    def __init__(self, inplace=False):
+        super(Hswish, self).__init__()
+        self.inplace = inplace
+
+    def __call__(self, input, **kwargs):
+        """Call Hswish function."""
+        return input * tf.nn.relu6(input + 3.) / 6.
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class Hsigmoid(Module, OperatorSerializable):
+    """Call Hsigmoid."""
+
+    def __init__(self, inplace=False):
+        super(Hsigmoid, self).__init__()
+        self.inplace = inplace
+
+    def __call__(self, input, **kwargs):
+        """Call Hsigmoid function."""
+        return tf.nn.relu6(input + 3.) / 6.
+
+
+@ClassFactory.register(ClassType.NETWORK)
 class AdaptiveAvgPool2d(Module, OperatorSerializable):
     """Call reduce_mean."""
 
@@ -341,23 +407,25 @@ class AdaptiveAvgPool2d(Module, OperatorSerializable):
         return tf.reduce_mean(input, axes, keepdims=True)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Linear(Module, OperatorSerializable):
     """Call dense."""
 
-    def __init__(self, in_features, out_features, use_bias=True):
+    def __init__(self, in_features=None, out_features=None, use_bias=True, activation=None):
         super(Linear, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.use_bias = use_bias
+        self.activation = activation
 
     def __call__(self, input, **kwargs):
         """Call dense function."""
         with tf.variable_scope(self._scope_name, reuse=tf.AUTO_REUSE):
-            return tf.keras.layers.Dense(units=self.out_features, use_bias=self.use_bias, name='Linear')(inputs=input)
+            return tf.keras.layers.Dense(units=self.out_features, use_bias=self.use_bias, name='Linear',
+                                         activation=self.activation)(inputs=input)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AvgPool2d(Module, OperatorSerializable):
     """Call average_pooling2d."""
 
@@ -377,10 +445,10 @@ class AvgPool2d(Module, OperatorSerializable):
                                                     strides=self.stride,
                                                     data_format=self.data_format,
                                                     padding='SAME',
-                                                    name='AvgPool2d')(input)
+                                                    name='AvgPool2d', trainable=self._trainable)(input)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class BatchNorm2d(Module, OperatorSerializable):
     """Call batch_normalization."""
 
@@ -395,14 +463,20 @@ class BatchNorm2d(Module, OperatorSerializable):
     def __call__(self, input, **kwargs):
         """Call batch_normalization function."""
         with tf.variable_scope(self._scope_name, reuse=tf.AUTO_REUSE):
-            return tf.keras.layers.BatchNormalization(momentum=self.momentum,
-                                                      axis=1 if self.data_format == 'channels_first' else 3,
-                                                      epsilon=self.eps,
-                                                      center=True, scale=True, fused=True,
-                                                      name='BatchNorm2d')(inputs=input, training=self.training)
+            bn = tf.keras.layers.BatchNormalization(momentum=self.momentum,
+                                                    axis=1 if self.data_format == 'channels_first' else 3,
+                                                    epsilon=self.eps,
+                                                    center=True, scale=True, fused=True,
+                                                    name='BatchNorm2d', trainable=self._trainable)
+            out = bn(inputs=input, training=self.training)
+            # update  moving average
+            # if self._trainable:
+            #     for item in bn.updates:
+            #         tf.add_to_collections(tf.GraphKeys.UPDATE_OPS, item)
+            return out
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Identity(Module, OperatorSerializable):
     """Class of Identity operation."""
 
@@ -415,7 +489,44 @@ class Identity(Module, OperatorSerializable):
         return tf.identity(x)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
+class Dropout(Module, OperatorSerializable):
+    """Class of Dropout."""
+
+    def __init__(self, prob=0.5, inplace=False):
+        """Construct Dropout class."""
+        super(Dropout, self).__init__(prob, inplace)
+        self.dropout = tf.keras.layers.Dropout(prob)
+
+    def __call__(self, x, **kwargs):
+        """Call Dropout function."""
+        out = self.dropout(x)
+        return out
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class Tanh(Module, OperatorSerializable):
+    """Class of Dropout."""
+
+    def __call__(self, x, **kwargs):
+        """Forward Tanh."""
+        return super(Tanh, self).forward(x)
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class Embedding(Module, OperatorSerializable):
+    """Class of Embedding."""
+
+    def __init__(self, num_embeddings, embedding_dim):
+        super(Embedding, self).__init__()
+        self.embedding = tf.keras.layers.Embedding(num_embeddings, embedding_dim, )
+
+    def __call__(self, x, **kwargs):
+        """Call embedding."""
+        return self.embedding(x)
+
+
+@ClassFactory.register(ClassType.NETWORK)
 class PixelShuffle(Module, OperatorSerializable):
     """Class of PixelShuffle."""
 
@@ -425,11 +536,17 @@ class PixelShuffle(Module, OperatorSerializable):
 
     def __call__(self, inputs, **kwargs):
         """Forward function of PixelShuffle."""
-        return tf.nn.depth_to_space(inputs, self.upscale,
-                                    data_format='NHWC' if self.data_format == "channels_last" else 'NCHW')
+        inputs = tf.cast(inputs, tf.float16)
+        if self.data_format == 'channels_first':
+            inputs = tf.transpose(inputs, [0, 2, 3, 1])
+        outputs = tf.nn.depth_to_space(inputs, self.upscale, data_format='NHWC')
+        if self.data_format == 'channels_first':
+            outputs = tf.transpose(outputs, [0, 3, 1, 2])
+        outputs = tf.cast(outputs, tf.float32)
+        return outputs
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Split(Module, OperatorSerializable):
     """Class of Split."""
 
@@ -445,7 +562,7 @@ class Split(Module, OperatorSerializable):
         return tf.split(inputs, number, self.dim)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Squeeze(Module, OperatorSerializable):
     """Class of Squeeze."""
 
@@ -458,7 +575,7 @@ class Squeeze(Module, OperatorSerializable):
         return tf.squeeze(inputs, [self.dim])
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Permute(Module, OperatorSerializable):
     """Class of Permute."""
 
@@ -471,7 +588,7 @@ class Permute(Module, OperatorSerializable):
         return tf.transpose(inputs, self.size)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Stack(Module, OperatorSerializable):
     """Class of Stack."""
 
@@ -484,7 +601,7 @@ class Stack(Module, OperatorSerializable):
         return tf.stack(inputs, self.dim)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Transpose(Module, OperatorSerializable):
     """Class of Transpose."""
 
@@ -499,7 +616,7 @@ class Transpose(Module, OperatorSerializable):
         return tf.transpose(inputs, new_dim)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class LeakyReLU(Module, OperatorSerializable):
     """Class of LeakyReLU."""
 
@@ -513,7 +630,7 @@ class LeakyReLU(Module, OperatorSerializable):
         return tf.nn.leaky_relu(input, self.alpha)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class InterpolateScale(Module, OperatorSerializable):
     """Upsample of torch with scale_factor."""
 
@@ -538,7 +655,7 @@ class InterpolateScale(Module, OperatorSerializable):
         return tf.transpose(output, [0, 3, 1, 2])
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MeanShift(Module, OperatorSerializable):
     """Subtract or add rgb_mean to the image."""
 
@@ -559,7 +676,7 @@ class MeanShift(Module, OperatorSerializable):
     def __call__(self, inputs, *args, **kwargs):
         """Call MeanShift."""
         std = tf.convert_to_tensor(self.rgb_std, dtype=tf.float32)
-        self.weight = tf.eye(3)
+        self.weight = tf.convert_to_tensor(np.eye(3).astype(np.float32))  # tf.eye(3)
         self.weight = tf.div(self.weight, std)
         self.bias = self.sign * self.rgb_range * tf.convert_to_tensor(self.rgb_mean, dtype=tf.float32)
         self.bias = tf.div(self.bias, std)
@@ -570,7 +687,19 @@ class MeanShift(Module, OperatorSerializable):
         return res
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
+class GlobalMaxPool1d(Module):
+    """Construct the class GlobalMaxPool1d."""
+
+    def __init__(self):
+        super(GlobalMaxPool1d, self).__init__()
+
+    def call(self, inputs, *args, **kwargs):
+        """Call max_pool1d function."""
+        return tf.layers.MaxPooling1D(pool_size=get_shape(inputs)[2])(inputs)
+
+
+@ClassFactory.register(ClassType.NETWORK)
 class MoudleList(Module, OperatorSerializable):
     """Class of LeakyReLU."""
 
@@ -606,6 +735,11 @@ def mul(a, b):
     return tf.multiply(a, b)
 
 
+def matmul(a, b):
+    """Call matmul according to backends."""
+    return tf.matmul(a, b)
+
+
 def random_normal(*size):
     """Apply random values from a normal distribution."""
     return tf.random.normal(size)
@@ -627,7 +761,7 @@ def gumbel_softmax_sample(input, temperature, eps=1e-20):
 
 def gumbel_softmax(input, dim=-1, tau=1, hard=True, eps=1e-20):
     """Apply a gumbel-softmax function."""
-    keep_dims = True if dim == -1 else False
+    # keep_dims = True if dim == -1 else False
     y = gumbel_softmax_sample(input, tau, eps)
     if hard:
         y_hard = tf.cast(tf.equal(y, tf.reduce_max(y, 1, keep_dims=True)), y.dtype)
@@ -806,3 +940,86 @@ def expand_as(inputs, tensor):
 def exp(tensor):
     """Return exp(tensor)."""
     return tf.math.exp(tensor)
+
+
+def pow(input, exponent, out=None):
+    """Calculate the exponent value of the input by element and returns the result tensor."""
+    return tf.pow(input)
+
+
+def ones(input_size, out):
+    """Return a tensor with all 1s. The shape is defined by the variable parameter size."""
+    return tf.ones(input_size, out)
+
+
+def one_hot(inputs, num_classes):
+    """Take LongTensor with index values of shape."""
+    return tf.one_hot(inputs, num_classes)
+
+
+def ones_like(out):
+    """Return a tensor with all 1s. The shape is defined by the variable parameter size."""
+    return tf.ones_like(out)
+
+
+def zeros_like(out):
+    """Return a tensor with all 1s. The shape is defined by the variable parameter size."""
+    return tf.zeros_like(out)
+
+
+def to(input, dtype):
+    """Convert input to dtype."""
+    if dtype == 'long':
+        dtype = tf.long
+    elif dtype == 'uint8':
+        dtype = tf.uint8
+    elif dtype == 'float32':
+        dtype = tf.float32
+    return tf.cast(input, dtype=dtype)
+
+
+def reduce_sum(input, dim=0, dtype=None):
+    """Apply sum function."""
+    out = tf.reduce_sum(input, axis=dim)
+    if dtype is not None:
+        out = to(out, dtype)
+    return out
+
+
+def gelu(x):
+    """Apply gelu function."""
+    return x * 0.5 * (1.0 + tf.erf(x / math.sqrt(2.0)))
+
+
+def swish(x):
+    """Apply swish function."""
+    return x * tf.sigmoid(x)
+
+
+def relu(x):
+    """Apply relu function."""
+    return tf.nn.relu(x)
+
+
+def sqrt(x):
+    """Apply sqrt function."""
+    return tf.sqrt(x)
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class LayerNorm(Module, OperatorSerializable):
+    """Layer Norm module."""
+
+    def __init__(self, hidden_size, eps=1e-12):
+        """Construct a layernorm module in the TF style (epsilon inside the square root)."""
+        super(LayerNorm, self).__init__()
+        self.weight = self.set_parameters('gamma', ones(hidden_size))
+        self.bias = self.set_parameters('beta', zeros(hidden_size))
+        self.variance_epsilon = eps
+
+    def call(self, x):
+        """Call LayerNorm."""
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / sqrt(s + self.variance_epsilon)
+        return self.weight * x + self.bias

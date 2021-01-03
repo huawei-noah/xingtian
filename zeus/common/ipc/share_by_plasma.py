@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """Share by plasma."""
+import sys
 import os
 import time
 from multiprocessing import Queue
@@ -42,37 +43,56 @@ class ShareByPlasma(object):
 
         self.control_q = Queue()
         self.client = {}
+        self.compress_threhold = 1024 * 1024
         self.start()
 
-    def send(self, data, name=None, block=True, data_type="data"):
+    def send(self, data, name=None, block=True):
         """Send data to plasma server."""
-        client = self.connect()
-        if data_type == "data":
-            data_buffer = lz4.frame.compress(serialize(data).to_buffer())
-        else:
-            data_buffer = serialize(data).to_buffer()
+        data_buffer = serialize(data['data']).to_buffer()
+        compress_type = data['ctr_info'].get('compress_type', 'auto')
+        if compress_type in ['auto', 'compress']:
+            if sys.getsizeof(bytes(data_buffer)) > self.compress_threhold or compress_type == 'compress':
+                data_buffer = lz4.frame.compress(data_buffer)
+                data['ctr_info'].update({"compress_flag": True})
 
+        client = self.connect()
         object_id = client.put_raw_buffer(data_buffer)
-        self.control_q.put((object_id, data_type))
+
+        ctr_info = serialize(data['ctr_info']).to_buffer()
+        data['ctr_info'].update({'ctr_info_data': ctr_info})
+        data['ctr_info'].update({'object_id': object_id})
+        self.control_q.put(data['ctr_info'])
 
         # del data
-        if data["ctr_info"].get("cmd") == "train":
+        cmd_type = str(data["ctr_info"].get("cmd"))
+        if cmd_type.startswith("train"):
             keys = []
             for key in data["data"].keys():
                 keys.append(key)
             for key in keys:
                 del data["data"][key]
-        elif data["ctr_info"].get("cmd") == "predict":
+        elif cmd_type.startswith("predict"):
             del data["data"]
+        # else: state_msg
 
     def recv(self, name=None, block=True):
         """Receive data from plasma server."""
-        object_id = self.control_q.get()
+        if not block and self.control_q.empty():
+            return None
+
+        ctr_info = self.control_q.get()
+        object_id = ctr_info['object_id']
+        compress_flag = ctr_info.get('compress_flag', False)
+
         client = self.connect()
-        data = deserialize(lz4.frame.decompress(client.get_buffers([object_id])))
+        data = client.get_buffers([object_id])[0]
+        if compress_flag:
+            data = lz4.frame.decompress(data)
+        data = deserialize(data)
+
         client.delete([object_id])
 
-        return data
+        return ctr_info, data
 
     def send_bytes(self, data_buffer, data_type="data"):
         """Send data to plasma server without serialize."""
@@ -80,20 +100,24 @@ class ShareByPlasma(object):
         object_id = client.put_raw_buffer(data_buffer)
         self.control_q.put((object_id, data_type))
 
-    def recv_bytes(self):
+    def recv_bytes(self, block):
         """Receive data from plasma server without deserialize."""
-        object_info = self.control_q.get()
-        client = self.connect()
-        object_id, _ = object_info
+        if not block and self.control_q.empty():
+            return None, None
 
+        ctr_info = self.control_q.get()
+        object_id = ctr_info['object_id']
+
+        client = self.connect()
         data_buffer = client.get_buffers([object_id])
         # client.delete([object_id])
 
-        return data_buffer[0], object_info
+        return ctr_info, data_buffer[0]
 
     def delete(self, object_id):
         """Delete."""
         client = self.connect()
+        # print("list plasma: \n", client.list())
         client.delete([object_id])
 
     def send_multipart(self, data_buffer):
@@ -123,16 +147,9 @@ class ShareByPlasma(object):
         try:
             plasma.connect(self.path, int_num_retries=2)
         except Exception:
-            Popen(
-                "plasma_store -m {} -s {}".format(self.size_shared_mem, self.path),
-                shell=True,
-                stderr=PIPE,
-            )
-            print(
-                "plasma_store -m {} -s {} is acitvated!".format(
-                    self.size_shared_mem, self.path
-                )
-            )
+            cmd_str = "plasma_store -m {} -s {}".format(self.size_shared_mem, self.path)
+            Popen(cmd_str, shell=True, stderr=PIPE)
+            print(cmd_str)
             time.sleep(0.1)
 
     def connect(self):

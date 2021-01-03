@@ -55,6 +55,7 @@ class Algorithm(object):
         self.train_count = 0
         self.alg_name = alg_name
         self.alg_config = alg_config
+        self.model_info = model_info
 
         self.async_flag = True
         # set default weights map, make compatibility to single agent
@@ -133,7 +134,7 @@ class Algorithm(object):
 
         return np.argmax(out)
 
-    def train_ready(self, total_count, **kwargs):
+    def train_ready(self, elapsed_episode, **kwargs):
         """
         Support custom train logic.
 
@@ -141,9 +142,14 @@ class Algorithm(object):
         """
         # we set train ready as default
         self._train_ready = True
-        if self.async_flag and total_count * \
-                self.prepare_data_times < self.learning_starts:
-            self._train_ready = False
+        # if self.async_flag and elapsed_episode < self.learning_starts:
+        #     self._train_ready = False
+        # if use buffer, check the buffer.size
+        if getattr(self, "buff") and self.learning_starts > 0:
+            # logging.debug("buff vs start: {} vs {}".format(
+            #     self.buff.size(), self.learning_starts))
+            if self.buff.size() < self.learning_starts:
+                self._train_ready = False
 
         return self._train_ready
 

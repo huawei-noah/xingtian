@@ -11,13 +11,11 @@
 """Defined initializer for tf backend."""
 import tensorflow as tf
 import tf_slim as slim
-
 from object_detection.protos import hyperparams_pb2
-
 from zeus.common import ClassType, ClassFactory
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class Initializer(object):
     """Initializer."""
 

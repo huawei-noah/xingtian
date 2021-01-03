@@ -17,9 +17,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-import tensorflow as tf
+from xt.model.tf_compat import tf
 from xt.model.tf_compat import Conv2D, Dense, Flatten, Input, Model, Adam, Lambda, K
 from xt.model.dqn.default_config import LR
+from xt.model.dqn.dqn_mlp import layer_normalize, layer_add
 from xt.model import XTModel
 from xt.model.tf_utils import TFVariables
 from zeus.common.util.common import import_config
@@ -38,6 +39,7 @@ class DqnCnn(XTModel):
         self.state_dim = model_info['state_dim']
         self.action_dim = model_info['action_dim']
         self.learning_rate = LR
+        self.dueling = model_config.get('dueling', False)
         super().__init__(model_info)
 
     def create_model(self, model_info):
@@ -50,6 +52,10 @@ class DqnCnn(XTModel):
         flattenlayer = Flatten()(convlayer)
         denselayer = Dense(256, activation='relu')(flattenlayer)
         value = Dense(self.action_dim, activation='linear')(denselayer)
+        if self.dueling:
+            adv = Dense(1, activation='linear')(denselayer)
+            mean = Lambda(layer_normalize)(value)
+            value = Lambda(layer_add)([adv, mean])
         model = Model(inputs=state, outputs=value)
         adam = Adam(lr=self.learning_rate, clipnorm=10.)
         model.compile(loss='mse', optimizer=adam)

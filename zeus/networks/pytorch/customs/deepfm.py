@@ -16,7 +16,7 @@ from .fis.layers import LinearLayer, EmbeddingLayer, \
 from zeus.common import ClassType, ClassFactory
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class DeepFactorizationMachineModel(torch.nn.Module):
     """DeepFM: A Factorization-Machine based Neural Network for CTR Prediction. https://arxiv.org/abs/1703.04247.
 

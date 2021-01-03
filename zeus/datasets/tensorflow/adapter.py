@@ -33,6 +33,15 @@ class TfAdapter(object):
         self.dataset = dataset
         self.args = dataset.args
         self._num_examples = len(self.dataset) if hasattr(self.dataset, "__len__") else self.args.get('num_images')
+        self.data_index = list(range(self._num_examples))
+        if self.args.get('train_portion', 1.0) < 1:
+            split = int(self.args.train_portion * self._num_examples)
+            if self.dataset.mode == 'train':
+                self.data_index = self.data_index[:split]
+                self._num_examples = split
+            elif self.dataset.mode == 'val':
+                self.data_index = self.data_index[split:]
+                self._num_examples = self._num_examples - split
         self.is_detection = self.args.get("is_detection", False)
 
     def _get_dateset_info(self):
@@ -176,12 +185,12 @@ class TfAdapter(object):
         if hasattr(self.dataset, "input_fn"):
             return self.dataset.input_fn()
         self._get_dateset_info()
-        images_index = list(range(self._num_examples))
-        label_index = images_index
         dataset = tf.data.Dataset.from_tensor_slices(
-            (images_index, label_index))
+            (self.data_index, self.data_index))
         if self.dataset.world_size > 1:
             dataset = dataset.shard(self.dataset.world_size, self.dataset.rank)
+        if self.dataset.mode == 'train':
+            dataset = dataset.repeat()
         if self.args.shuffle:
             dataset = dataset.shuffle(buffer_size=self._num_examples)
 

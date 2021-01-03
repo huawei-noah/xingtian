@@ -20,7 +20,7 @@
 import os
 import time
 import numpy as np
-import tensorflow as tf
+from xt.model.tf_compat import tf
 
 from xt.model.ppo.ppo_mlp_zeus import PpoMlpZeus
 from xt.model.ppo.default_config import \
@@ -54,6 +54,7 @@ class PpoCnnZeus(PpoMlpZeus):
         self.action_dim = model_info['action_dim']
         self.action_type = model_config.get('action_type')
         self.num_sgd_iter = model_config.get('NUM_SGD_ITER', NUM_SGD_ITER)
+        self.gpu_nums = model_info.get("gpu_nums", 1)
         super().__init__(model_info)
 
     def create_model(self, model_info):
@@ -71,7 +72,7 @@ class PpoCnnZeus(PpoMlpZeus):
         loss_input['labels'].append({"name": "target_p", "type": "int32", "shape": 1})
         loss_input['labels'].append({"name": "adv", "type": "float32", "shape": 1})
 
-        model = Trainer(model=zeus_model, lazy_build=False, loss_input=loss_input)
+        model = Trainer(model=zeus_model, lazy_build=False, loss_input=loss_input, gpu_nums=self.gpu_nums)
         return model
 
 

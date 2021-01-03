@@ -81,7 +81,7 @@ class CartpolePpo(Agent):
 
         return self.transition_data
 
-    def get_trajectory(self):
+    def get_trajectory(self, last_pred=None):
         self.data_proc()
         return super().get_trajectory()
 

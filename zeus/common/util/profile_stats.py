@@ -19,11 +19,15 @@
 # THE SOFTWARE.
 """Utils for profiling status."""
 
+import os
+import psutil
+import tracemalloc
 import pprint
 from collections import deque
 from time import time
 from absl import logging
 import numpy as np
+from zeus.common.util.default_xt import DebugConf
 
 
 class LoopTracker(object):
@@ -47,7 +51,7 @@ class LoopTracker(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit."""
+        """Record time with Exit."""
         self.end = time()
         self.with_time_list.append(self.end - self.start)
 
@@ -205,8 +209,8 @@ class AgentGroupStats(object):
         if self.iters > 0:
             self._stats.update(
                 {
-                    "mean_env_step_time_ms": self.env_step_time * 1000 / self.iters,
-                    "mean_inference_time_ms": self.inference_time * 1000 / self.iters,
+                    "mean_env_step_ms": self.env_step_time * 1000 / self.iters,
+                    "mean_inference_ms": self.inference_time * 1000 / self.iters,
                     "iters": self.iters,
                 }
             )
@@ -232,7 +236,7 @@ class TimerRecorder(object):
         self.fields = fields
         self.track_stub = {item: deque(maxlen=maxlen) for item in fields}
 
-        self.report_interval = 30  # s
+        self.report_interval = DebugConf.interval_s  # s
         self.last_report_time = 0  # -self.report_interval
 
     def append(self, **kwargs):
@@ -269,3 +273,20 @@ class TimerRecorder(object):
 
             logging.debug("\n{}\n".format(to_log_format))
             self.last_report_time = time()
+
+
+def show_memory_stats(pid, verbose=False, snapshot_before=None, top_count=3):
+    """Show memory stats."""
+    mem_used = psutil.Process(pid).memory_info().rss / 1024. / 1024. / 1024.
+    mem_info = psutil.virtual_memory()
+    mem_percent = mem_info.percent
+
+    logging.debug("Used memory: {:.3} GB, {:.2f} %".format(mem_used, mem_percent))
+    # return mem_used, mem_percent
+
+    if verbose:
+        snapshot2 = tracemalloc.take_snapshot()
+        top_stats = snapshot2.compare_to(snapshot_before, 'lineno')
+        logging.debug(">> Top {}: >>".format(top_count))
+        for stat in top_stats[:top_count]:
+            logging.debug(str(stat))

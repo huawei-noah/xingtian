@@ -11,24 +11,29 @@
 """This is SearchSpace for network."""
 from zeus.common import ClassFactory, ClassType
 from zeus.modules.connections import OutlistSequential
-from zeus.networks.necks import make_res_layer, BasicBlock, Bottleneck
+from zeus.networks.necks import make_res_layer_from_code, BasicBlock
 from zeus.modules.operators import ops
+from zeus.modules.module import Module
+
+base_arch_code = {18: '11-21-21-21',
+                  34: '111-2111-211111-211',
+                  50: '111-2111-211111-211',
+                  101: '111-2111-21111111111111111111111-211'}
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
-class ResNetDet(ops.Module):
+@ClassFactory.register(ClassType.NETWORK)
+class ResNetDet(Module):
     """ResNet for detection."""
 
     arch_settings = {
         18: (BasicBlock, (2, 2, 2, 2)),
         34: (BasicBlock, (3, 4, 6, 3)),
-        50: (Bottleneck, (3, 4, 6, 3)),
-        101: (Bottleneck, (3, 4, 23, 3)),
-        152: (Bottleneck, (3, 8, 36, 3))
+        50: (BasicBlock, (3, 4, 6, 3)),
+        101: (BasicBlock, (3, 4, 23, 3))
     }
 
     def __init__(self, depth, num_stages=4, strides=(1, 2, 2, 2), dilations=(1, 1, 1, 1), out_indices=(0, 1, 2, 3),
-                 style="pytorch", frozen_stages=-1, norm_eval=True, zero_init_residual=False):
+                 style="pytorch", frozen_stages=-1, norm_eval=True, zero_init_residual=False, code=None):
         """Init ResNet."""
         super(ResNetDet, self).__init__()
         self.out_indices = out_indices
@@ -41,15 +46,21 @@ class ResNetDet(ops.Module):
         self.inplanes = 64
         self._make_stem_layer()
         self.res_layers = []
+        if code is None:
+            self.code = base_arch_code[depth].split('-')
+        else:
+            self.code = code.split('-')
         for i, num_blocks in enumerate(self.stage_blocks):
             stride = strides[i]
             dilation = dilations[i]
             planes = 64 * 2 ** i
-            res_layer = make_res_layer(self.block, self.inplanes, planes,
-                                       num_blocks, stride=stride, dilation=dilation, style=self.style)
+            res_layer = make_res_layer_from_code(self.block, self.inplanes, planes, num_blocks,
+                                                 stride=stride, dilation=dilation,
+                                                 style=self.style, code=self.code[i])
             self.inplanes = planes * self.block.expansion
             self.res_layers.append(res_layer)
-        self.res_layers_seq = OutlistSequential(*self.res_layers, out_list=self.out_indices)
+        self.res_layers_seq = OutlistSequential(
+            *self.res_layers, out_list=self.out_indices)
         self.feat_dim = self.block.expansion * 64 * 2 ** (len(self.stage_blocks) - 1)
 
     def _make_stem_layer(self):

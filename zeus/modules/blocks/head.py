@@ -14,7 +14,7 @@ from zeus.common import ClassFactory, ClassType
 from zeus.modules.operators import ops
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class LinearClassificationHead(Module):
     """Create LinearClassificationHead SearchSpace."""
 
@@ -32,7 +32,7 @@ class LinearClassificationHead(Module):
         self.linear = ops.Linear(in_features=base_channel, out_features=num_classes)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AuxiliaryHead(Module):
     """Auxiliary Head of Network.
 

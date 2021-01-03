@@ -31,7 +31,7 @@ def smooth_l1_loss(pred, target, beta=1.0):
     return loss
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class SmoothL1Loss(Module):
     """Smooth L1 Loss."""
 

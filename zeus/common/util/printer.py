@@ -20,9 +20,30 @@
 """Utils for printing."""
 
 import sys
+from time import time
+import pprint
+from absl import logging
+LAST_PRINT = time()
 
 
 def print_immediately(to_str):
     """Print some string immediately."""
     print(to_str)
     sys.stdout.flush()
+
+
+def debug_within_interval(logs=None, interval=10, func=None, human_able=False, **kwargs):
+    """Print with time interval."""
+    global LAST_PRINT
+    if time() - LAST_PRINT > interval:
+        # print(func, **kwargs)
+        if func and callable(func):
+            func(**kwargs)
+        if logs:
+            logs_human = pprint.pformat(logs, indent=0, width=1) if human_able else logs
+            logging.debug("{}".format(logs_human))
+
+        LAST_PRINT = time()
+        return True
+
+    return False

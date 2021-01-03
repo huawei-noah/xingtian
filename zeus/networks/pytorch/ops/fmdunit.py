@@ -16,7 +16,7 @@ from zeus.modules.module import Module
 from zeus.common import ClassFactory, ClassType
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class FMDUnit(Module):
     """Basic class for feature map distortion.
 
@@ -85,7 +85,7 @@ class FMDUnit(Module):
             return x
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class LinearScheduler(Module):
     """LinearScheduler class.
 

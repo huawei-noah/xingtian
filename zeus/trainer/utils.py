@@ -27,9 +27,9 @@ class WorkerTypes(Enum):
 
     TRAINER = 1
     EVALUATOR = 2
-    GPU_EVALUATOR = 3
+    HOST_EVALUATOR = 3
     HAVA_D_EVALUATOR = 4
-    DavinciMobileEvaluator = 5
+    DeviceEvaluator = 5
 
 
 class PairDictQueue():

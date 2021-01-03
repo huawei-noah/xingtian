@@ -66,7 +66,10 @@ class MetricsEvaluator(Callback):
             self.cur_loss = logs['loss']
             self.loss_avg = self.cur_loss
         else:
-            batch_size = input.size(0)
+            if isinstance(input, dict):
+                batch_size = 1
+            else:
+                batch_size = input.size(0)
             self.cur_loss = logs['loss']
             self.loss_avg = self._average_loss(batch_size, self.cur_loss)
         output = logs['train_batch_output']
@@ -128,6 +131,10 @@ class MetricsEvaluator(Callback):
                                        'best_valid_perfs_changed': self.best_valid_changed})
 
         logs.update({'summary_perfs': self.summary_perfs})
+
+    def after_train(self, logs=None):
+        """Be called before training."""
+        self.after_epoch(self.trainer.epochs, logs)
 
     def _update_best_perfs(self, cur_perfs, best_perfs):
         best_changed = False

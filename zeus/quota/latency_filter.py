@@ -10,9 +10,9 @@
 
 """Flops and Parameters Filter."""
 import logging
-import time
 import zeus
 from zeus.common import ClassFactory, ClassType
+from zeus.metrics import calc_forward_latency
 from .filter_terminate_base import FilterTerminateBase
 
 
@@ -34,24 +34,12 @@ class LatencyFilter(FilterTerminateBase):
         if self.max_latency is None:
             return False
         model, count_input = self.get_model_input(desc)
-        num = 100
-        if zeus.is_torch_backend():
-            start_time = time.time()
-            for i in range(num):
-                model(count_input)
-            latency = (time.time() - start_time) / num
-        elif zeus.is_tf_backend():
-            import tensorflow as tf
-            input = tf.placeholder(tf.float32, shape=count_input.get_shape().as_list())
-            output = model(input, training=False)
-            with tf.compat.v1.Session() as sess:
-                input_numpy = count_input.eval(session=sess)
-                start_time = time.time()
-                for i in range(num):
-                    sess.run(output, feed_dict={input: input_numpy})
-                latency = (time.time() - start_time) / num
-        logging.info('Sampled model\'s latency: {}'.format(latency))
+        trainer = ClassFactory.get_cls(ClassType.TRAINER)(model_desc=desc)
+        sess_config = trainer._init_session_config() if zeus.is_tf_backend() else None
+        latency = calc_forward_latency(model, count_input, sess_config)
+        logging.info('Sampled model\'s latency: {}ms'.format(latency))
         if latency > self.max_latency:
+            logging.info('The latency is out of range. Skip this network.')
             return True
         else:
             return False

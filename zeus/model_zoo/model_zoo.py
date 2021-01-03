@@ -43,20 +43,24 @@ class ModelZoo(object):
         :rtype: model.
 
         """
-        try:
-            network = NetworkDesc(model_desc)
-            model = network.to_model()
-        except Exception as e:
-            logging.error("Failed to get model, model_desc={}, msg={}".format(
-                model_desc, str(e)))
-            raise e
+        model = None
+        if model_desc is not None:
+            try:
+                network = NetworkDesc(model_desc)
+                model = network.to_model()
+            except Exception as e:
+                logging.error("Failed to get model, model_desc={}, msg={}".format(
+                    model_desc, str(e)))
+                raise e
         logging.info("Model was created.")
-        if zeus.is_torch_backend() and pretrained_model_file:
-            model = cls._load_pretrained_model(network, model, pretrained_model_file)
+        if pretrained_model_file is not None:
+            model = cls._load_pretrained_model(model, pretrained_model_file)
+        if model is None:
+            raise ValueError("Failed to get mode, model is None.")
         return model
 
     @classmethod
-    def _load_pretrained_model(cls, network, model, pretrained_model_file):
+    def _load_pretrained_model(cls, model, pretrained_model_file):
         if zeus.is_torch_backend():
             import torch
             if not os.path.isfile(pretrained_model_file):
@@ -64,6 +68,9 @@ class ModelZoo(object):
             logging.info("load model weights from file, weights file={}".format(pretrained_model_file))
             checkpoint = torch.load(pretrained_model_file)
             model.load_state_dict(checkpoint)
+        elif zeus.is_ms_backend():
+            from mindspore.train.serialization import load_checkpoint
+            load_checkpoint(pretrained_model_file, net=model)
         return model
 
     @classmethod

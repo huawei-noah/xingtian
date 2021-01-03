@@ -9,7 +9,7 @@
 # MIT License for more details.
 
 """Compressed model filter."""
-import os
+
 import pandas as pd
 
 

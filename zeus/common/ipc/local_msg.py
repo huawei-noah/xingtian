@@ -43,8 +43,11 @@ class LocalMsg(object):
 
     def recv(self, name=None, block=True):
         """Receive data."""
-        self.cmd_q.get(block=block)
-        data = self.data_list.pop(0)
-        # print("locl msg", msg_num, data)
+        try:
+            self.cmd_q.get(block=block)
+        except queue.Empty:
+            data = None
+        else:
+            data = self.data_list.pop(0)
 
         return data

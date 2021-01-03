@@ -38,7 +38,7 @@ class AttrProxy(object):
         return getattr(self.module, self.prefix + str(i))
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AutoGroupModel(torch.nn.Module):
     """Automatic Feature Grouping.
 

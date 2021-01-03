@@ -18,4 +18,4 @@ def get_module_class(cls_name):
     :param cls_name: class name
     :return: Search Space cls
     """
-    return ClassFactory.get_cls(ClassType.SEARCH_SPACE, cls_name)
+    return ClassFactory.get_cls(ClassType.NETWORK, cls_name)

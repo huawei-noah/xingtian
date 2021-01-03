@@ -32,7 +32,7 @@ class ShareByRedis(object):
     def __init__(self, comm_info):
         """Initilize redis component."""
         super(ShareByRedis, self).__init__()
-        # For master, there is no 'addr' parameter given.
+        # For Controller, there is no 'addr' parameter given.
         self.ip_addr = comm_info.get("addr", "127.0.0.1")
         self.port = comm_info.get("port", 6379)
         self.password = comm_info.get("password", None)

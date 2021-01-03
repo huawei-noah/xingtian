@@ -68,7 +68,7 @@ OPS = {
 }
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MixedOp(ops.Module):
     """Mix operations between two nodes.
 
@@ -90,10 +90,14 @@ class MixedOp(ops.Module):
                     op = Seq(op, ops.BatchNorm2d(C, affine=False))
                 self.add_module(primitive, op)
 
-    def call(self, x, weights=None, *args, **kwargs):
+    def call(self, x, weights=None, selected_idx=None, *args, **kwargs):
         """Call function of MixedOp."""
-        if weights is None:
-            for model in self.children():
-                x = model(x)
-            return x
-        return ops.add_n(weights[idx] * op(x) for idx, op in enumerate(self.children()) if weights[idx] != 0)
+        if selected_idx is None:
+            if weights is None:
+                for model in self.children():
+                    x = model(x)
+                return x
+            return ops.add_n(weights[idx] * op(x) for idx, op in enumerate(self.children()) if weights[idx] != 0)
+        else:
+            # SGAS alg: unchosen operations are pruned
+            return list(self.children())[selected_idx](x)

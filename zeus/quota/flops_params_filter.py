@@ -9,9 +9,12 @@
 # MIT License for more details.
 
 """Flops and Parameters Filter."""
+import logging
 from zeus.common import ClassFactory, ClassType
 from zeus.metrics import calc_model_flops_params
 from .filter_terminate_base import FilterTerminateBase
+
+logger = logging.getLogger(__name__)
 
 
 @ClassFactory.register(ClassType.QUOTA)
@@ -41,8 +44,10 @@ class FlopsParamsFilter(FilterTerminateBase):
         flops, params = flops * 1e-9, params * 1e-3
         if self.flops_range is not None:
             if flops < self.flops_range[0] or flops > self.flops_range[1]:
+                logger.info("The flops {} is out of range. Skip this network.".format(flops))
                 return True
         if self.params_range is not None:
             if params < self.params_range[0] or params > self.params_range[1]:
+                logger.info("The parameters {} is out of range. Skip this network.".format(params))
                 return True
         return False

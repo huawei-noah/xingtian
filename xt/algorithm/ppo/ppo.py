@@ -79,13 +79,17 @@ class PPO(Algorithm):
     def prepare_data(self, train_data, **kwargs):
         self.obs.append(train_data['cur_state'])
         self.behavior_action.append(train_data['action'])
-        self.old_logp.append(train_data['log_p'])
+        self.old_logp.append(train_data['logp'])
         self.adv.append(train_data['adv'])
         self.old_v.append(train_data['old_value'])
         self.target_v.append(train_data['target_value'])
 
     def predict(self, state):
         """Overwrite the predict function, owing to the special input."""
-        state = state.reshape((1,) + state.shape)
+        if not isinstance(state, (list, tuple)):
+            state = state.reshape((1,) + state.shape)
+        else:
+            state = list(map(lambda x: x.reshape((1,) + x.shape), state))
+            state = np.vstack(state)
         pred = self.actor.predict(state)
         return pred

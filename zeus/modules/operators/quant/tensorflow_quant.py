@@ -103,8 +103,8 @@ def quantize_w(input, nbit):
 
     def grads(grad_output):
         if grad_output is None:
-            return tf.zeros_like(input), None, None
-        return grad_output, None, None
+            return tf.zeros_like(input), None
+        return grad_output, None
 
     return output, grads
 
@@ -168,43 +168,37 @@ def bireal_w(w, nbit_w=1, *args, **kwargs):
     return sign(w) * tf.reduce_mean(tf.math.abs(tf.Variable(w)))
 
 
-def dorefa_a(input, nbit_a, alpha=None, offset=None):
+def dorefa_a(input, nbit_a, *args, **kwargs):
     """Dorefa quantization for activations.
 
     :param input: batch of input
     :type input: Tensor
     :param nbit: bit width
     :type nbit: int
-    :param alpha: scale factor
-    :type alpha: float or Tensor
-    :param offset: offset factor
-    :type offset: float or Tensor
     :return: quantized output
     :rtype: Tensor
     """
-    scale = tf.cast((2 ** nbit_a - 1) if alpha is None else (2 ** nbit_a - 1) / alpha, input.dtype)
-    return quantize_a(tf.clip_by_value(input, 0, 1.0), nbit_a, scale)
+    return quantize_a(tf.clip_by_value(input, 0, 1.0), nbit_a)
 
 
 @tf.custom_gradient
-def quantize_a(input, nbit, scale):
+def quantize_a(input, nbit):
     """Quantization function for activations.
 
     :param input: batch of input
     :type input: Tensor
     :param nbit: bit width
     :type nbit: int
-    :param scale: calculated scale
-    :type scale: float or Tensor
     :return: quantized output and grad function
     :rtype: Tensor, fn
     """
+    scale = tf.cast((2 ** nbit - 1), input.dtype)
     output = tf.math.round(input * scale) / scale
 
     def grads(grad_output):
         if grad_output is None:
-            return tf.zeros_like(input), None, None
-        return grad_output, None, None
+            return tf.zeros_like(input), None
+        return grad_output, None
 
     return output, grads
 
@@ -367,10 +361,11 @@ class QuantConv(tf.layers.Conv2D, Module):
                 return x
         # w quan
         self.weight = tf.get_variable(self.name + '/kernel',
-                                      initializer=tf.random.normal(self.kernel_size + (self.in_channels,
-                                                                                       self.out_channels,)))
+                                      shape=[self.kernel_size[0], self.kernel_size[1],
+                                             self.in_channels, self.out_channels],
+                                      initializer=tf.initializers.variance_scaling(scale=1.0 / 3,
+                                                                                   distribution='uniform'))
         if self.nbit_w < 32:
-            self.nbit_w = 1
             w = self.quan_w(self.weight, self.nbit_w, self.alpha_w, self.offset)
         else:
             w = self.weight

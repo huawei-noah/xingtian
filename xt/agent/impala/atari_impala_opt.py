@@ -19,6 +19,7 @@
 # THE SOFTWARE.
 """Build vectorized multi-environment in Atari agent for impala algorithm."""
 
+from time import sleep
 import numpy as np
 from collections import defaultdict, deque
 
@@ -37,8 +38,8 @@ class AtariImpalaOpt(CartpolePpo):
         super().__init__(env, alg, agent_config, **kwargs)
         self.keep_seq_len = True  # to keep max sequence length in explorer.
         self.next_logit = None
-        self.broadcast_weights_interval = 2
-        self.sync_weights_count = 0
+        self.broadcast_weights_interval = agent_config.get("sync_model_interval", 1)
+        self.sync_weights_count = self.broadcast_weights_interval  # 0, sync with start
 
         # vector environment will auto reset in step
         self.transition_data["done"] = False
@@ -62,22 +63,14 @@ class AtariImpalaOpt(CartpolePpo):
         :param use_explore:
         :return: action value
         """
-        if self.next_state is None:
-            s_t = (np.array(state, dtype="int16") - 128).astype("int8")
-            predict_val = self.alg.predict(s_t)
-
-            logit = predict_val[0]
-            value = predict_val[1]
-            action = predict_val[2]
-        else:
-            s_t = self.next_state
-            logit = self.next_logit
-            action = self.next_action
-            value = self.next_value
+        predict_val = self.alg.predict(state)
+        logit = predict_val[0]
+        value = predict_val[1]
+        action = predict_val[2]
 
         # update transition data
         for env_id in range(self.vector_env_size):
-            self.sample_vector[env_id]["cur_state"].append(s_t[env_id])
+            self.sample_vector[env_id]["cur_state"].append(state[env_id])
             self.sample_vector[env_id]["logit"].append(logit[env_id])
             self.sample_vector[env_id]["action"].append(action[env_id])
 
@@ -85,15 +78,6 @@ class AtariImpalaOpt(CartpolePpo):
 
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
         """Handle next state, reward and info."""
-        next_state = (np.array(next_raw_state, dtype="int16") - 128).astype("int8")
-        predict_val = self.alg.predict(next_state)
-
-        self.next_logit = predict_val[0]
-        self.next_value = predict_val[1]
-        self.next_action = predict_val[2]
-
-        self.next_state = next_state
-
         for env_id in range(self.vector_env_size):
             info[env_id].update({'eval_reward': reward[env_id]})
             self.reward_per_env[env_id] += reward[env_id]
@@ -109,7 +93,7 @@ class AtariImpalaOpt(CartpolePpo):
 
         return self.transition_data
 
-    def get_trajectory(self):
+    def get_trajectory(self, last_pred=None):
         for env_id in range(self.vector_env_size):
             for _data_key in ("cur_state", "logit", "action", "reward", "done", "info"):
                 self.trajectory[_data_key].extend(self.sample_vector[env_id][_data_key])
@@ -132,11 +116,14 @@ class AtariImpalaOpt(CartpolePpo):
             model_name = self.recv_explorer.recv(block=True)
             self.sync_weights_count = 0
 
-            try:
-                while True:
-                    model_name = self.recv_explorer.recv(block=False)
-            except:
-                pass
+            model_successor = self.recv_explorer.recv(block=False)
+            while model_successor:
+                model_successor = self.recv_explorer.recv(block=False)
+                sleep(0.002)
+
+            if model_successor:
+                print("getsuccessor: {}".format(model_successor))
+                model_name = model_successor
 
         return model_name
 

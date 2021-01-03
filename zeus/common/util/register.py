@@ -19,11 +19,13 @@
 # THE SOFTWARE.
 """Register factory."""
 
+import re
 import importlib
 import os
 from os.path import dirname
 import sys
 import glob
+from collections import defaultdict
 from absl import logging
 # logging.set_verbosity(logging.DEBUG)
 try:
@@ -48,6 +50,9 @@ class RegisterStub(object):  # pylint: disable=too-few-public-methods
             return self._dict[key]
         except Exception as exc:
             logging.error("module {} not found: {}".format(key, exc))
+            if key in REGISTER_ERRORS:
+                logging.error("With register error: \n{}".format(REGISTER_ERRORS[key]))
+
             raise exc
 
     def __call__(self, param):
@@ -133,6 +138,32 @@ DEFAULT_MODULE_STUBS = [
     ("zeus.common.ipc", IPC_MODULES),
 ]
 
+# Each module only have single class.
+REGISTER_ERRORS = defaultdict()
+
+
+def get_class_name(base_path, module_name):
+    """Get first class.name within one .py file."""
+    file_name = (base_path + module_name).replace(".", "/") + ".py"
+    if xt:
+        # release, zeus and xt are same level
+        target_f = os.path.join(dirname(dirname(xt.__file__)), file_name)
+        # develop, zeus on the up one level of xt.
+        if not os.path.exists(target_f):
+            target_f = os.path.join(dirname(dirname(xt.__file__)),
+                                    "..", file_name)
+        file_name = target_f
+
+    cls_name = None
+    with open(file_name, "r", encoding="utf-8") as pyf:
+        for line in pyf.readlines():
+            cls_matched = re.match(r"class\s(.*?)[\(:]", line)
+            if cls_matched:
+                cls_name = cls_matched.group(1)
+                break
+
+    return cls_name
+
 
 def register_xt_defaults():
     """Register default modules."""
@@ -157,7 +188,13 @@ def register_xt_defaults():
                 logging.debug("Loaded {}!".format(full_name))
             except ImportError as error:
                 import_error_track.append((module_name, error))
+                try:
+                    cls_name = get_class_name(base_path, module_name)
+                except BaseException as exc:
+                    cls_name = "un-known-cls"
+
+                REGISTER_ERRORS[cls_name] = str(error)
 
     # logging out the error among register operation
     for module, error in import_error_track:
-        logging.warning("{} import failed with error:{}".format(module, error))
+        logging.debug("{} import failed with error:{}".format(module, error))

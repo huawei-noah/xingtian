@@ -24,15 +24,15 @@ class EvalCallBack(Callback):
     :type eval_dataset: MindDataset
     """
 
-    def __init__(self, model, eval_dataset):
+    def __init__(self, model, eval_dataset, dataset_sink_mode):
         super(EvalCallBack, self).__init__()
         self.model = model
         self.eval_dataset = eval_dataset
+        self.dataset_sink_mode = dataset_sink_mode
 
     def epoch_end(self, run_context):
         """Be called after each epoch."""
         cb_params = run_context.original_args()
-        metric = self.model.eval(self.eval_dataset, dataset_sink_mode=False)
-        logging.info(
-            "Current epoch : [{}/{}], current valid metric {}.".format(cb_params.cur_epoch_num, cb_params.epoch_num,
-                                                                       metric))
+        metric = self.model.eval(self.eval_dataset, dataset_sink_mode=self.dataset_sink_mode)
+        logging.info("Current epoch : [{}/{}], current valid metric {}.".format(
+            cb_params.cur_epoch_num, cb_params.epoch_num, metric))

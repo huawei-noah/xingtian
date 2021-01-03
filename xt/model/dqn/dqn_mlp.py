@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-from xt.model.tf_compat import Dense, Input, Model, Adam, tf
+from xt.model.tf_compat import Dense, Input, Model, Adam, tf, Lambda
 from xt.model.tf_utils import TFVariables
 from xt.model.dqn.default_config import HIDDEN_SIZE, NUM_LAYERS, LR
 from xt.model import XTModel
@@ -37,6 +37,7 @@ class DqnMlp(XTModel):
         self.state_dim = model_info['state_dim']
         self.action_dim = model_info['action_dim']
         self.learning_rate = LR
+        self.dueling = model_config.get('dueling', False)
         super().__init__(model_info)
 
     def create_model(self, model_info):
@@ -45,7 +46,13 @@ class DqnMlp(XTModel):
         denselayer = Dense(HIDDEN_SIZE, activation='relu')(state)
         for _ in range(NUM_LAYERS - 1):
             denselayer = Dense(HIDDEN_SIZE, activation='relu')(denselayer)
+
         value = Dense(self.action_dim, activation='linear')(denselayer)
+        if self.dueling:
+            adv = Dense(1, activation='linear')(denselayer)
+            mean = Lambda(layer_normalize)(value)
+            value = Lambda(layer_add)([adv, mean])
+
         model = Model(inputs=state, outputs=value)
         adam = Adam(lr=self.learning_rate)
         model.compile(loss='mse', optimizer=adam)
@@ -69,3 +76,12 @@ class DqnMlp(XTModel):
 
             feed_dict = {self.infer_state: state}
             return self.sess.run(self.infer_v, feed_dict)
+
+def layer_normalize(x):
+    """Normalize data."""
+    return tf.subtract(x, tf.reduce_mean(x, axis=1, keep_dims=True))
+
+
+def layer_add(x):
+    """Compute Q given Advantage and V."""
+    return x[0] + x[1]

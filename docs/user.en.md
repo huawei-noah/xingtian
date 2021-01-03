@@ -39,10 +39,9 @@ optional arguments:
 When the starting, the workspace path will be printed. The model and related evaluation results are saved in the workspace.
 
 ```zsh
+INFO Dec 26 11:08:22: **********
 workspace:
-        /home/user/xt_archive/xt_cartpole+20200727170508
-model will save under path:
-        /home/user/xt_archive/xt_cartpole+20200727170508/models
+        /home/User/xt_archive/xt_CartPole-v0_PPO+201226110822T0
 ```
 
 
@@ -65,15 +64,16 @@ alg_para:                                               # parameter for algorith
 
 env_para:                                               # parameter for Environment module
   env_name: GymEnv                                      # Environment name registed, class name as default
-  env_info: { 'name': CartPole-v0, 'vision': False}     # game name
+  env_info:                                             # game name
+    name: CartPole-v0
+    vision: False 
 
 agent_para:                                             # Agent Parameter
-  agent_name: CartpolePpo                               # Agent name registed, class name as default
+  agent_name: PPO                                       # Agent name registed, class name as default
   agent_num : 1                                         # agent number live under the same environment
-  agent_config: {
-    'max_steps': 200 ,                                  # max interaction step within each episode
-    'complete_step': 50000                              # whole explore steps in once train task
-    }
+  agent_config:
+    max_steps: 200                                      # max interaction step within each episode
+    complete_step: 50000                                # whole explore steps in once train task
 
 model_para:                                             # Model Parameter
   actor:                                                # By default, contains a model named actor.
@@ -82,7 +82,7 @@ model_para:                                             # Model Parameter
     action_dim: 2                                       # dimensions of action
     summary: False                                      # summary model to log
 
-env_num: 1                                              # The number of explorer to start up in each node
+env_num: 10                                             # The number of explorer to start up in each node
 
 # set the IP, account, and password of your machine,
 # If you want to configure a distributed training network,
@@ -91,10 +91,9 @@ env_num: 1                                              # The number of explorer
 # 1. use a local node, User do not need to set 'node_config' or 'test_node_config'. The system automatically configures it.
 # 2. use a non-local node, User must set all node information, including the local node account information.
 
-# node_config: [["127.0.0.1", "username", "passwd"]]      # account for each node
+# node_config: [["127.0.0.1", "username", "passwd"]]    # account for each node
 
-#test_node_config: [["127.0.0.1", "user", "passwd"]]    # evaluate node account
-#test_model_path: ../xt_archive/model_data/cartpole_0   # model file to evaluate
+# test_node_config: [["127.0.0.1", "user", "passwd"]]   # evaluate node account
 
 # remote_env:                                           # remote env
 #  conda: /home/test_user/anaconda2/envs/xt_qmix        # remove conda env set
@@ -102,12 +101,14 @@ env_num: 1                                              # The number of explorer
 #    SC2PATH: /home/test_user/user-proj/marl_sim/StarCraftII
 #    no_proxy: "192.168.1.*,127.0.0.1,10.*"
 
-#benchmark:                                             # benchmark info
+# benchmark:                                            # benchmark info
 # The plus sign (+) is a connector in the ID. If the character contains the plus sign (+), the system directly uses the ID and does not add information such as the timestamp.
 #  id: xt_cartpole            # default: default_ENV_ALG ('+'.join([ID, START_time]))
 #  archive_root: ./xt_archive # default: ~/xt_archive   # Root directory for archiving evaluation information, which is automatically allocated.
 #  eval:
+#    model_path: /xt_archive/model_data/cartpole_0      # model file to evaluate
 #    gap: 20                                            # evaluate interval after training
+#    model_divided_freq: 1                              # how many times to divided of each model
 #    episodes_per_eval: 2                               # Number of episodes run for each evaluation 	 
 #    evaluator_num: 1 	                                # Setting the number of instances that support concurrent evaluation
 #    max_step_per_episode: 2000                         # Maximum number of steps for each evaluation
@@ -116,22 +117,22 @@ env_num: 1                                              # The number of explorer
 
 
 
-By default, tensorboard is used to display the training status information, and the task-related records are stored in the `workspace` directory.
+By default, `TensorboardX` is used to display the training status information, and the task-related records are stored in the `workspace` directory.
 
 The benchmark directory stores key information such as the parameter configuration and train/evaluate reward information of the training task.
 
 ```zsh
-/home/test_user/xt_archive/xt_cartpole+20200628101412/
+/home/User/xt_archive/xt_CartPole-v0_PPO+201226110822T0
 |-- benchmark
 |   |-- records.csv
 |   `-- train_config.yaml
-|-- events.out.tfevents.1593310452.SZXXXXXXXXXX
+|-- events.out.tfevents.1608952102.SZXXXXXXXXXX
 |-- models
-|   |-- actor_00000.h5
-|   |-- actor_00001.h5
-|   |-- actor_00002.h5
-|   |-- actor_00003.h5
-|   |-- actor_00004.h5
-|   `-- actor_00005.h5
+|   |-- actor_00000.npz
+|   |-- actor_00100.npz
+|   |-- actor_00200.npz
+|   |-- actor_00300.npz
+|   |-- actor_00400.npz
+|   `-- actor_00500.npz
 `-- train_records.json
 ```

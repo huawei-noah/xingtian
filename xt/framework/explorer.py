@@ -22,7 +22,7 @@ import signal
 import threading
 from copy import deepcopy
 from absl import logging
-
+import setproctitle
 from zeus.common.ipc.share_buffer import ShareBuf
 from xt.framework.agent_group import AgentGroup
 from zeus.common.ipc.uni_comm import UniComm
@@ -45,13 +45,14 @@ class Explorer(object):
         self.send_agent = UniComm("LocalMsg")
         self.explorer_id = self.env_para.get("env_id")
         self.broker_id = broker_id
+        self.learner_postfix = config_info.get("learner_postfix")
         self.rl_agent = None
+        self.report_stats_interval = max(config_info.get('env_num'), 7)
 
         self._buf_path = config_info["share_path"]
         self._buf = ShareBuf(live=10, path=self._buf_path)  # live para is dummy
 
-        logging.debug("init explorer with id: {}, buf_path: {}".format(
-            self.explorer_id, self._buf_path))
+        logging.info("init explorer with id: {}, buf_path: {}".format(self.explorer_id, self._buf_path))
 
     def start_explore(self):
         """Start explore process."""
@@ -59,8 +60,6 @@ class Explorer(object):
         os.environ["CUDA_VISIBLE_DEVICES"] = str(-1)
         explored_times = 0
 
-        report_stats_interval = 20
-        last_report_index = -999
         try:
             self.rl_agent = AgentGroup(
                 self.env_para,
@@ -71,19 +70,23 @@ class Explorer(object):
                 self._buf
             )
             explore_time = self.agent_para.get("agent_config", {}).get("sync_model_interval", 1)
-            logging.info("AgentGroup start to explore with sync interval-{}".format(explore_time))
+            logging.info("explorer-{} start with sync interval-{}".format(
+                self.explorer_id, explore_time))
 
             while True:
+                model_type = self.rl_agent.update_model()
                 stats = self.rl_agent.explore(explore_time)
+
                 explored_times += explore_time
-
-                if self.explorer_id < 1:
-                    logging.debug("explore-{} ran {} times".format(self.explorer_id, explored_times))
-
-                if explored_times - last_report_index > report_stats_interval:
-                    stats_msg = message(stats, cmd="stats_msg")
+                if explored_times % self.report_stats_interval == self.explorer_id \
+                        or explored_times == explore_time:
+                    stats_msg = message(stats, cmd="stats_msg",
+                                        broker_id=self.broker_id,
+                                        explorer_id=self.explorer_id)
                     self.recv_agent.send(stats_msg)
-                    last_report_index = explored_times
+                    if self.explorer_id < 1:
+                        logging.debug("EXP{} ran {} ts, restore {} ts, last type:{}".format(
+                            self.explorer_id, explored_times, self.rl_agent.restore_count, model_type))
 
         except BaseException as ex:
             logging.exception(ex)
@@ -114,16 +117,18 @@ class Explorer(object):
         """Send train data to learner."""
         while True:
             data = self.recv_agent.recv()
-
             info_cmd = get_msg_info(data, "cmd")
-            # print("info_cmd in explorer: ", info_cmd, data)
-            data_type = "buf_reduce" if info_cmd == "buf_reduce" else "data"
-            set_msg_info(data, broker_id=self.broker_id, explorer_id=self.explorer_id)
 
-            self.send_broker.send(data, data_type=data_type)
+            new_cmd = info_cmd + self.learner_postfix
+            set_msg_info(data, broker_id=self.broker_id,
+                         explorer_id=self.explorer_id, cmd=new_cmd)
+
+            self.send_broker.send(data)
 
     def start(self):
         """Start actor's thread and process."""
+        setproctitle.setproctitle("xt_explorer")
+
         self.start_data_transfer()
         self.start_explore()
 
@@ -131,9 +136,9 @@ class Explorer(object):
         self.rl_agent.close()
 
 
-def setup_explorer(broker_master, config_info, env_id):
+def setup_explorer(controller_recv_stub, config_info, env_id):
     config = deepcopy(config_info)
     config["env_para"].update({"env_id": env_id})
 
     msg = message(config, cmd="create_explorer")
-    broker_master.recv_local_q.send(msg)
+    controller_recv_stub.send(msg)

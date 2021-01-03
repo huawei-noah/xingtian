@@ -17,7 +17,7 @@ from zeus.modules.connections import Repeat
 from zeus.modules.operators import ops
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ResNetGeneral(Module):
     """Create ResNet General SearchSpace."""
 
@@ -27,7 +27,7 @@ class ResNetGeneral(Module):
         34: ('BasicBlock', 16),
         50: ('BottleneckBlock', 16),
         101: ('BottleneckBlock', 33),
-        152: ('BottleneckBlokc', 50),
+        152: ('BottleneckBlock', 50),
     }
 
     _default_blocks = {
@@ -136,6 +136,6 @@ class ResNetGeneral(Module):
         return cell
 
     @property
-    def output_channel(self):
+    def out_channels(self):
         """Output Channel for ResNet backbone."""
         return [module.out_channels for name, module in self.named_modules() if isinstance(module, ops.Conv2d)][-1]

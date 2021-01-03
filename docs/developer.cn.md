@@ -1,6 +1,14 @@
 ## 开发者指导
 
-刑天强化学习库对开发者开放了Algorithm，Model，Agent，Environment四个应用模块的接口，其之间的关系如下图所示。Algorithm在训练进程中被实例化，用于迭代更新模型的权重；迭代更新后的权重通过分布式后台分发给Agent用于环境的交互探索；而Agent只在数据采样进程进行实例化。开发者根据其具体需求，添加对应的类，并注册到系统，即可在Yaml配置文件中进行组合使用。
+刑天基于分布式的`Broker`设计，将强化学习过程划分`Learner` 和`Explorer` 两部分。如下图所示，`Learner`通过broker 获取trajectory数据，用于模型策略的迭代更新；而`Explorer` 通过Broker 更新探索模型，以及收集探索的轨迹数据。 
+
+<div align="center">
+<img width="auto" height="480px" src="./.images/broker_arch.png">
+</div>
+
+
+
+刑天强化学习库对开发者开放了Algorithm，Model，Agent，Environment四个应用模块的接口，其之间的关系如下图所示。Algorithm在训练进程中被`Learner`实例化，用于迭代更新模型的权重；迭代更新后的权重通过分布式后台分发给Agent用于环境的交互探索；而Agent只在数据采样进程`Explorer`进行实例化。开发者根据其具体需求，添加对应的类，并注册到系统，即可在Yaml配置文件中进行组合使用。
 
 <div align="center">
 <img width="auto" height="240px" src="./.images/four_opening_module.png">
@@ -21,7 +29,7 @@ Algorithm 模块的工作目录为`xt/algorithm`。
 - `save`：保存模型
 - `restore`：恢复模型
 
-用户在`xt/algorithm`目录下建立新的目标文件夹，在该文件夹下面实现`YOUR_ALGORITHM.py`. 用户Algorithm继承该基类之后，只需实现`prepare_data` 和 `train` 接口即可。并通过`@Registers.algorithm.register`注册到系统，示例如下。
+用户在`xt/algorithm`目录下建立新的目标文件夹，在该文件夹下面实现`YOUR_ALGORITHM.py`. 用户Algorithm继承该基类之后，只需实现`prepare_data` 和 `train` 接口即可。并通过`@Registers.algorithm`注册到系统，示例如下。
 
 ```python
 from xt.algorithm import Algorithm
@@ -43,7 +51,7 @@ class NewAlgorithm(Algorithm):
 
 Model 模块的工作目录为`xt/model`。
 
-Model 模块用于定义深度网络的架构，以执行网络的推理和训练过程。考虑到不同深度学习框架后端的差异，系统抽象了Tensorflow的`XtModel` 基类，使用Tensorflow 后端的用户可以直接继承该基类；而Pytorch后端用户可以按照传统的深度学习方法继承`torch.nn.Module`基类，自行实现模型的定义，预测和训练等逻辑。最后通过`@Registers.model.register` 注册到系统，示例如下。
+Model 模块用于定义深度网络的架构，以执行网络的推理和训练过程。考虑到不同深度学习框架后端的差异，系统抽象了Tensorflow的`XtModel` 基类，使用Tensorflow 后端的用户可以直接继承该基类；而Pytorch后端用户可以按照传统的深度学习方法继承`torch.nn.Module`基类，自行实现模型的定义，预测和训练等逻辑。最后通过`@Registers.model` 注册到系统，示例如下。
 
 ```python
 import torch

@@ -22,15 +22,18 @@
 import os
 import sys
 import pprint
+from copy import deepcopy
+from collections import defaultdict, OrderedDict
+from functools import partial
 from time import time
 
-from functools import partial
+import numpy as np
 from absl import logging
 
-from zeus.common.ipc.message import message
 from xt.agent import agent_builder
 from xt.algorithm import alg_builder
 from xt.environment import env_builder
+from zeus.common.ipc.message import message
 from zeus.common.util.profile_stats import AgentGroupStats
 
 
@@ -75,10 +78,15 @@ class WorkerPool(object):
 class EvaluateData(object):
     def __init__(self, agent_ids):
         self.agent_ids = agent_ids
-        self.data = {_id: {"reward": list()} for _id in agent_ids}
+        self._data_key = ("epi_reward", "step_reward")
+        self.data = {_id: self.data_template(self._data_key) for _id in agent_ids}
 
     def clear(self):
-        self.data = {_id: {"reward": list()} for _id in self.agent_ids}
+        self.data = {_id: self.data_template(self._data_key) for _id in self.agent_ids}
+
+    @staticmethod
+    def data_template(keys):
+        return {k: list() for k in keys}
 
     def append(self, rewards, criteria):
         """
@@ -92,9 +100,10 @@ class EvaluateData(object):
         for val in rewards:
             agent_id = list(val.keys())[0]
             if agent_id not in self.data.keys():
-                self.data.update({agent_id: {"reward": list()}})
+                self.data.update({agent_id: self.data_template(self._data_key)})
             agent_data = self.data[agent_id]
-            agent_data["reward"].append(val[agent_id])
+            for _k in self._data_key:
+                agent_data[_k].append(val[agent_id][_k])
 
         for dict_val in criteria:
             for _ag_id, val in dict_val.items():
@@ -113,16 +122,19 @@ class EvaluateData(object):
 class AgentGroup(object):
 
     def __init__(self, env_para, alg_para, agent_para,
-                 recv_explorer=None, send_explorer=None, buf_stub=None):
+                 recv_explorer=None, send_explorer=None, buf_stub=None, **kwargs):
         # agent group set scene 'explore' as default.
-        alg_para.update({"scene": "explore"})
+        alg_para.update({"scene": kwargs.get("scene", "explore")})
+        # fixme: parameter apportion
+        if "alg_config" not in alg_para.keys():
+            alg_para.update({"alg_config": dict()})
         _exp_params = pprint.pformat(
             {"env_para": env_para, "alg_para": alg_para, "agent_para": agent_para},
             indent=0,
             width=1,
         )
         if env_para.get("env_id", 0) < 1:
-            logging.info("init agent group with: \n" + _exp_params + "\n")
+            logging.info("init agent group for: {}".format(alg_para.get("scene")))
         else:
             logging.debug("init agent group-{}".format(env_para.get("env_id")))
 
@@ -134,31 +146,54 @@ class AgentGroup(object):
         self.env = env_builder(**env_para)
         self.env_info = self.env.get_env_info()
 
-        self.agent_num = agent_para.get(
-            "agent_num", 1)  # fixme: check from env
-        paras_to_init = [
-            partial(
-                self.__para_template,
-                agent_para,
-                alg_para,
-                self.env,
-                recv_explorer,
-                send_explorer,
-            )()
-            for _ in range(self.agent_num)
-        ]
+        # fixme: check from env
+        self.agent_num = agent_para.get("agent_num", 1)
 
-        # get newest weights map from the algorithm module.
-        self.alg_weights_map = paras_to_init[0]["alg"].weights_map
-        # 1. without set weights map, share the weights for all agents.
-        # and set the agent_id as index
-        # 2. multi agent, there may have name for each agent, used it.
+        if self.env_info["api_type"] == "standalone":
+            self.algs = [alg_builder(**alg_para) for _ in range(self.agent_num)]
+            paras_to_init = [
+                partial(
+                    self.__para_template,
+                    agent_para,
+                    self.algs[i],
+                    self.env,
+                    recv_explorer,
+                    send_explorer
+                )()
+                for i in range(self.agent_num)
+            ]
+        elif self.env_info["api_type"] == "unified":
+            self.algs = [alg_builder(**alg_para)]
+            paras_to_init = [
+                partial(
+                    self.__para_template,
+                    agent_para,
+                    self.algs[0],
+                    self.env,
+                    recv_explorer,
+                    send_explorer
+                )()
+                for i in range(self.agent_num)
+            ]
+        else:
+            raise ValueError("invalid 'api_type':{} from environment".format(self.env_info))
+
+        # 1. without set weights map, share weights to all agents and set agent_id as index.
+        # 2. multi agent, there may have name for each agent, use its original name.
         paras_to_init = self.__update_agent_id(paras_to_init)
         paras_to_init = self._update_env_num(paras_to_init, env_para.get("env_info"))
+
         # logging.debug("paras_to_init as: \n {}".format(paras_to_init))
         self.agents = [agent_builder(**para) for para in paras_to_init]
         logging.debug("makeup agents: {}".format(self.agents))
         self.step_per_episode = paras_to_init[0]["agent_config"].get("max_steps", 18000)
+
+        # get newest weights map from the algorithm module.
+        self.alg_weights_map = {}
+        for ag_id in self.env_info["agent_ids"]:
+            self.alg_weights_map[ag_id] = self.algs[0].update_weights_map(ag_id)
+        for alg in self.algs:
+            alg.weights_map = deepcopy(self.alg_weights_map)
 
         self.recv_explorer = recv_explorer
         self.send_explorer = send_explorer
@@ -168,8 +203,7 @@ class AgentGroup(object):
 
         self.bot = WorkerPool(parallel_num=self.agent_num)
         self.eval_data = EvaluateData(self.env_info["agent_ids"])
-        self.ag_stats = AgentGroupStats(
-            self.agent_num, self.env_info["api_type"])
+        self.ag_stats = AgentGroupStats(self.agent_num, self.env_info["api_type"])
 
     def _update_env_num(self, target_para, env_info):
         if not env_info:
@@ -181,13 +215,11 @@ class AgentGroup(object):
         return target_para
 
     @staticmethod
-    def __para_template(agent_para, alg_para, env, recv_explorer, send_explorer):
-        if "alg_config" not in alg_para.keys():  # fixme: parameter apportion
-            alg_para.update({"alg_config": dict()})
+    def __para_template(agent_para, alg, env, recv_explorer, send_explorer):
         # fixme: model info may vary with environment dynamical
         para_template = {
             "agent_name": agent_para.get("agent_name"),
-            "alg": alg_builder(**alg_para),
+            "alg": alg,
             "env": env,
             "agent_config": agent_para.get("agent_config", {}).copy(),
         }
@@ -199,16 +231,14 @@ class AgentGroup(object):
         return para_template
 
     def __update_agent_id(self, paras):
-        if not self.alg_weights_map:
+        if self.env_info["api_type"] == "standalone":
             for i in range(self.agent_num):
                 paras[i]["agent_config"].update(
                     {"agent_id": i + self.env_id * self.agent_num})
         else:
-            assert self.agent_num == len(
-                self.env_info["agent_ids"]
-            ), "agent num not match with environment's, {} vs {}".format(
-                self.agent_num, len(self.env_info["agent_ids"])
-            )
+            assert self.agent_num == len(self.env_info["agent_ids"]), \
+                "agent num not match with environment's, {} vs {}".format(
+                    self.agent_num, len(self.env_info["agent_ids"]))
             for i, _id in zip(range(self.agent_num), self.env_info["agent_ids"]):
                 paras[i]["agent_config"]["agent_id"] = _id
         return paras
@@ -239,55 +269,43 @@ class AgentGroup(object):
         """
         self.restore_count += 1
         # fixme: remove model name file, and make sense to multi-agent.
-        # print("try to get weights:", weights)
         if is_id:
-            model_weights = self.buf_stub.get(weights)
-            reduce_msg = message(weights, cmd="buf_reduce")
-            self.send_explorer.send(reduce_msg)
+            weights = self.buf_stub.get(weights)
+            model_weights = {"data": weights}
         else:
             model_weights = {"data": weights}
-
-        for _ag in self.agents:
+        # logging.info("model_weights: {}".format(model_weights))
+        # logging.info("explorer-{} restore weights: {}".format(self.env_id, type(model_weights)))
+        for alg in self.algs:
             # weights as dict data, deliver model by weighs
             # dict, would be useful to multi-agent.
-            if isinstance(weights, (dict, bytes)):
+            # bytes, as the weights_id
+            # list, as to keras.get_weights
+            if isinstance(weights, (dict, bytes, list)):
+                alg.restore(model_weights=model_weights["data"])
+                continue
+            elif not model_weights["data"]:  # None, dummy model.
                 # buffer may return weights with None
-                if not model_weights["data"]:  # None, dummy model.
-                    logging.debug("not data in dict, continue!")
-                    continue
-
-                _ag.alg.restore(model_weights=model_weights["data"])
-
-                if self.env_id < 1:
-                    logging.debug("ag-{} restore weights t-{}".format(_ag.id, self.restore_count))
+                logging.debug("Dummy model 'None' in dict, continue!")
                 continue
 
             # 0, default, without weights map, agents will share the same weights
             if not self.alg_weights_map:
-                logging.debug(
-                    "without weights map, use the first weights as default")
+                logging.debug("without weights map, use the first weights as default")
                 model_name = weights[0]
             # 1, use weight prefix
-            elif self.alg_weights_map[_ag.id].get("prefix"):
-                weight_prefix = self.alg_weights_map[_ag.id].get("prefix")
-                model_candid = [
-                    _item
-                    for _item in weights
-                    if os.path.basename(_item).startswith(weight_prefix)
-                ]
-                model_name = model_candid[0] if len(model_candid) > 0 else None
+            elif self.alg_weights_map.get("prefix"):
+                pass
             # 2, use model name
             else:
-                model_name = self.alg_weights_map[_ag.id].get("name")
+                pass
 
-            assert model_name is not None, "NO model weight for: {}".format(
-                _ag.id)
+            assert model_name is not None, "No model weight".format(alg.alg_name)
 
             # restore model with agent.alg.restore()
-            logging.debug(
-                "agent-{} trying to load model: {}".format(_ag.id, model_name)
-            )
-            _ag.alg.restore(model_name)
+            logging.debug("agent-{} trying to load model: {}".format(
+                alg.alg_name, model_name))
+            alg.restore(model_name)
 
     def clear_trajectories(self):
         self.trajectories = list()
@@ -300,77 +318,120 @@ class AgentGroup(object):
         pass
 
     def _run_one_unified_episode(self, use_explore, collect=True):
-        for _ag in self.agents:
-            _ag.clear_trajectory()
+        for agent in self.agents:
+            agent.clear_trajectory()
 
         self.env.reset()
         states = self.env.get_init_state()
         for _step in range(self.step_per_episode):
-            for _ag in self.agents:
-                _ag.clear_transition()
+            for agent in self.agents:
+                agent.clear_transition()
 
-            transitions = self._do_one_unified_interaction(
-                states, self.agents, use_explore
-            )
+            states, transitions = self._do_one_unified_interaction(states, use_explore)
 
-            states = {
-                _ag.id: _transit["next_state"]
-                for _ag, _transit in zip(self.agents, transitions)
-            }
             if collect:
-                for _ag in self.agents:
-                    _ag.add_to_trajectory(_ag.transition_data)
+                feed_funcs = [agent.add_to_trajectory for agent in self.agents]
+                feed_inputs = [[agent.transition_data] for agent in self.agents]
+                self.bot.do_multi_job(feed_funcs, feed_inputs)
 
             if all([t["done"] for t in transitions]):
                 logging.debug("end interaction on step-{}".format(_step))
                 break
         else:
-            logging.debug(
-                "end without done, but max step-{}".format(
-                    self.step_per_episode)
-            )
+            logging.debug("end without done, but max step-{}".format(
+                self.step_per_episode))
 
-        return [ag.get_trajectory() for ag in self.agents]
+        states = self._decode_group_data(states)
+        last_pred_vals = self._unified_infer(states)
+        last_pred_vals = self._reorganize_pred_vals(last_pred_vals)
+
+        feed_inputs = [[last_pred_val] for last_pred_val in last_pred_vals]
+        feed_funcs = [agent.get_trajectory for agent in self.agents]
+
+        return self.bot.do_multi_job(feed_funcs, feed_inputs)
 
     def _decode_group_data(self, data):
-        return [data[_ag.id] for _ag in self.agents]
+        # TODO: check with dynamic agent id
+        return [data[agent.id] for agent in self.agents]
 
-    def _do_one_unified_interaction(self, states, agents, use_explore):
-        infer_funcs = [agent.infer_action for agent in agents]
-        # agent share weight, inference with anyOne states
-        if not self.alg_weights_map:
-            inputs = [sta for sta in states.values()]
-        else:  # TODO: check with dynamic agent id
-            inputs = [states[_agent.id] for _agent in agents]
+    def _unified_infer(self, states):
+        pred_vals = self.algs[0].predict(states)
+        if not isinstance(pred_vals, tuple):
+            pred_vals = [pred_vals]
+        return pred_vals
 
+    def _reorganize_pred_vals(self, pred_vals):
+        """
+        DESC: Reorganize predict values
+
+        predcit values are not organized in a single agent compatiable form,
+        so they need to be reorganized.
+
+        the following code does the same thing as:
+        ```
+        pred_vals_cand = [[] for _ in range(len(self.agents))]
+        for i in range(len(self.agents)):
+            for j in range(len(pred_vals)):
+                pred_vals_cand[i].append(pred_vals[j][i])
+        return pred_vals_cand
+        ```
+        """
+        expand_func = partial(np.expand_dims, axis=-1)
+        split_func = partial(np.vsplit, indices_or_sections=self.agent_num)
+        squeeze_func = partial(np.squeeze, axis=-1)
+
+        pred_vals = map(expand_func, pred_vals)
+        pred_vals = map(split_func, pred_vals)
+        pred_vals = map(squeeze_func, pred_vals)
+        pred_vals = list(zip(*pred_vals))
+
+        return pred_vals
+
+    def _do_one_unified_interaction(self, states, use_explore):
         _start0 = time()
-        inputs = [(val, use_explore) for val in inputs]
-        batch_action = self.bot.do_multi_job(infer_funcs, inputs)
-        self.ag_stats.inference_time = +time() - _start0
+        states = self._decode_group_data(states)
+        pred_vals = self._unified_infer(states)
+        pred_vals = self._reorganize_pred_vals(pred_vals)
+
+        feed_funcs = [agent.handel_predict_value for agent in self.agents]
+        feed_inputs = list(zip(states, pred_vals))
+
+        batch_action =  self.bot.do_multi_job(feed_funcs, feed_inputs)
 
         # agent.id keep pace with the id within the environment.
-        action_package = {_ag.id: v for _ag,
-                          v in zip(self.agents, batch_action)}
+        action_package = {_ag.id: v for _ag, v in zip(self.agents, batch_action)}
+        self.ag_stats.inference_time += time() - _start0
 
         _start1 = time()
         next_states, rewards, done, info = self.env.step(action_package)
         self.ag_stats.env_step_time += time() - _start1
         self.ag_stats.iters += 1
 
+        feed_funcs = [agent.handle_env_feedback for agent in self.agents]
         feed_inputs = [
             (s, r, d, i, use_explore)
-            for s, r, d, i in zip(
-                # map(self._decode_group_data, [next_states, rewards, done, info])
-                self._decode_group_data(next_states),
-                self._decode_group_data(rewards),
-                self._decode_group_data(done),
-                self._decode_group_data(info),
-            )
+            for s, r, d, i in zip(*map(self._decode_group_data,
+                                       [next_states, rewards, done, info]))
         ]
-        feed_funcs = [agent.handle_env_feedback for agent in agents]
+
         transition_data_list = self.bot.do_multi_job(feed_funcs, feed_inputs)
 
-        return transition_data_list
+        return next_states, transition_data_list
+
+    def update_model(self):
+        """Split update model and explore process. Return model type."""
+        _start0 = time()
+        model_name = self.agents[0].sync_model()  # fixme: async alg dummy
+        self.ag_stats.wait_model_time = time() - _start0
+
+        # fixme: unify model type
+        # 1) don't restore model before data meet minimum data set. likes qmix.
+        # 2) don't restore with special policy, likes IMPALA.
+        if model_name:
+            _start1 = time()
+            self.restore(model_name)
+            self.ag_stats.restore_model_time = time() - _start1
+        return type(model_name)
 
     def explore(self, episode_count):
         """
@@ -384,21 +445,6 @@ class AgentGroup(object):
         :param episode_count:
         :return:
         """
-        _start0 = time()
-        model_name = self.agents[0].sync_model()  # fixme: async alg dummy
-        self.ag_stats.wait_model_time = time() - _start0
-
-        if self.env_id < 1:
-            logging.debug("get sync model type: {}".format(type(model_name)))
-
-        # fixme: unify model type
-        # 1) don't restore model before data meet minimum data set. likes qmix.
-        # 2) don't restore with special policy, likes IMPALA.
-        if model_name:
-            _start1 = time()
-            self.restore(model_name)
-            self.ag_stats.restore_model_time = time() - _start1
-
         # single agent, always use the `run_one_episode` api.
         # multi agent with `standalone` api_type, use the `run_one_episode` api.
         if self.env_info["api_type"] == "standalone":
@@ -414,9 +460,9 @@ class AgentGroup(object):
                     agent.reset()
 
                 trajectory_list = self.bot.do_multi_job(job_funcs, _paras)
-                for _ag, trajectory in zip(self.agents, trajectory_list):
-                    if not _ag.alg.async_flag:
-                        self.trajectories.append(trajectory)
+                for agent, trajectory in zip(self.agents, trajectory_list):
+                    if not agent.alg.async_flag:
+                        # self.trajectories.append(trajectory)
                         self.send_explorer.send(trajectory)
 
                 self._post_processes()
@@ -424,29 +470,26 @@ class AgentGroup(object):
 
                 if _epi_index == episode_count - 1:
                     self.ag_stats.update_with_agent_stats(
-                        [_a.get_perf_stats() for _a in self.agents]
+                        [agent.get_perf_stats() for agent in self.agents]
                     )
 
         elif self.env_info["api_type"] == "unified":
             for _ in range(episode_count):
                 _start2 = time()
                 trajectories = self._run_one_unified_episode(
-                    use_explore=True, collect=True
-                )
+                    use_explore=True, collect=True)
 
                 for _ag, trajectory in zip(self.agents, trajectories):
                     if not _ag.alg.async_flag:
-                        self.trajectories.append(trajectory)
+                        # self.trajectories.append(trajectory)
                         self.send_explorer.send(trajectory)
 
                 self._post_processes()
                 self.ag_stats.explore_time_in_epi = time() - _start2
-
         else:
-            raise ValueError(
-                "invalid 'api_type':{} from environment".format(self.env_info)
-            )
+            pass
 
+        self.clear_trajectories()
         return self.ag_stats.get()
 
     def evaluate(self, episode_count):

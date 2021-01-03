@@ -17,7 +17,7 @@ class ClassificationDatasetCommonConfig(ConfigSerializable):
 
     data_path = None
     batch_size = 1
-    shuffle = True
+    shuffle = False
     drop_last = True
     n_class = None
     train_portion = 1.0
@@ -28,17 +28,35 @@ class ClassificationDatasetCommonConfig(ConfigSerializable):
     distributed = False
     pin_memory = False
 
+    @classmethod
+    def rules(cls):
+        """Return rules for checking."""
+        rules_ClassificationDatasetCommon = {"data_path": {"type": str},
+                                             "batch_size": {"type": int},
+                                             "shuffle": {"type": bool},
+                                             "drop_last": {"type": bool},
+                                             "n_class": {"type": int},
+                                             "train_portion": {"type": (int, float)},
+                                             "n_images": {"type": (int, None)},
+                                             "cached": {"type": bool},
+                                             "transforms": {"type": list},
+                                             "num_workers": {"type": int},
+                                             "distributed": {"type": bool},
+                                             "pin_memory": {"type": bool}
+                                             }
+        return rules_ClassificationDatasetCommon
+
 
 class ClassificationDatasetTraineConfig(ClassificationDatasetCommonConfig):
     """Default Cifar10 config."""
 
-    pass
+    shuffle = True
 
 
 class ClassificationDatasetValConfig(ClassificationDatasetCommonConfig):
     """Default Cifar10 config."""
 
-    pass
+    shuffle = False
 
 
 class ClassificationDatasetTestConfig(ClassificationDatasetCommonConfig):
@@ -54,3 +72,22 @@ class ClassificationDatasetConfig(ConfigSerializable):
     train = ClassificationDatasetTraineConfig
     val = ClassificationDatasetValConfig
     test = ClassificationDatasetTestConfig
+
+    @classmethod
+    def rules(cls):
+        """Return rules for checking."""
+        rules_ClassificationDataset = {"common": {"type": dict},
+                                       "train": {"type": dict},
+                                       "val": {"type": dict},
+                                       "test": {"type": dict}
+                                       }
+        return rules_ClassificationDataset
+
+    @classmethod
+    def get_config(cls):
+        """Get sub config."""
+        return {'common': cls.common,
+                'train': cls.train,
+                'val': cls.val,
+                'test': cls.test
+                }

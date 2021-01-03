@@ -15,7 +15,7 @@ from zeus.modules.module import Module
 from zeus.modules.operators import ops
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class DartsNetwork(Module):
     """Create Darts SearchSpace."""
 
@@ -31,7 +31,7 @@ class DartsNetwork(Module):
             self._aux_size = aux_size
             self._auxiliary_layer = auxiliary_layer
         # Build stems part
-        self.pre_stems = ClassFactory.get_instance(ClassType.SEARCH_SPACE, stem)
+        self.pre_stems = ClassFactory.get_instance(ClassType.NETWORK, stem)
         # Build cells part
         c_curr = self.pre_stems.output_channel
         self.cells_ = Cells(cells, c_curr, init_channels, auxiliary=auxiliary, auxiliary_layer=auxiliary_layer)
@@ -43,7 +43,7 @@ class DartsNetwork(Module):
         if not search and auxiliary:
             self.auxiliary_head = AuxiliaryHead(c_aux, num_classes, aux_size)
         # head
-        self.head = ClassFactory.get_instance(ClassType.SEARCH_SPACE, head, base_channel=c_prev,
+        self.head = ClassFactory.get_instance(ClassType.NETWORK, head, base_channel=c_prev,
                                               num_classes=num_classes)
         self.initializer()
 
@@ -51,6 +51,11 @@ class DartsNetwork(Module):
         """Initialize architecture parameters."""
         self.set_parameters('alphas_normal', 1e-3 * ops.random_normal(self.len_alpha, self.num_ops))
         self.set_parameters('alphas_reduce', 1e-3 * ops.random_normal(self.len_alpha, self.num_ops))
+
+    @property
+    def learnable_params(self):
+        """Get learnable params of alphas."""
+        return [self.alphas_normal, self.alphas_reduce]
 
     @property
     def arch_weights(self):
@@ -99,7 +104,7 @@ class DartsNetwork(Module):
             return logits
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class CARSDartsNetwork(DartsNetwork):
     """Base CARS-Darts Network of classification."""
 
@@ -110,7 +115,7 @@ class CARSDartsNetwork(DartsNetwork):
                                                aux_size, auxiliary_layer, drop_path_prob)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class GDASDartsNetwork(DartsNetwork):
     """Base GDAS-DARTS Network of classification."""
 

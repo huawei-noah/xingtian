@@ -24,6 +24,7 @@ class MSE(MetricBase):
         """Init Mes metric."""
         self.sum = 0
         self.pfm = 0
+        self.data_num = 0
 
     def __call__(self, output, target, *args, **kwargs):
         """Perform top k accuracy.

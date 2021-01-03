@@ -15,11 +15,11 @@ from zeus.modules.connections import Add
 from zeus.modules.operators import ops
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ShortCut(Module):
     """Create Shortcut SearchSpace."""
 
-    def __init__(self, inchannel, outchannel, expansion, stride=1):
+    def __init__(self, inchannel, outchannel, expansion, stride=1, norm_layer={"norm_type": 'BN'}):
         """Create ShortCut layer.
 
         :param inchannel: input channel.
@@ -35,14 +35,15 @@ class ShortCut(Module):
         if stride != 1 or inchannel != outchannel * expansion:
             self.conv1 = ops.Conv2d(in_channels=inchannel, out_channels=outchannel * expansion, kernel_size=1,
                                     stride=stride, bias=False)
-            self.batch = ops.BatchNorm2d(num_features=outchannel * expansion)
+            self.batch = build_norm_layer(features=outchannel * expansion, **norm_layer)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class BottleConv(Module):
     """Create BottleConv Searchspace."""
 
-    def __init__(self, inchannel, outchannel, expansion, groups, base_width, stride=1):
+    def __init__(self, inchannel, outchannel, expansion, groups, base_width, stride=1, norm_layer={"norm_type": 'BN'},
+                 Conv2d='Conv2d'):
         """Create BottleConv layer.
 
         :param inchannel: input channel.
@@ -56,22 +57,24 @@ class BottleConv(Module):
         """
         super(BottleConv, self).__init__()
         outchannel = int(outchannel * (base_width / 64.)) * groups
-        self.conv1 = ops.Conv2d(in_channels=inchannel, out_channels=outchannel, kernel_size=1, stride=1, bias=False)
-        self.batch1 = ops.BatchNorm2d(num_features=outchannel)
-        self.conv2 = ops.Conv2d(in_channels=outchannel, out_channels=outchannel, kernel_size=3, stride=stride,
-                                padding=1, groups=groups, bias=False)
-        self.batch2 = ops.BatchNorm2d(num_features=outchannel)
-        self.conv3 = ops.Conv2d(in_channels=outchannel, out_channels=outchannel * expansion, kernel_size=1, stride=1,
-                                bias=False)
-        self.batch3 = ops.BatchNorm2d(num_features=outchannel * expansion)
+        self.conv1 = build_conv_layer(in_channels=inchannel, out_channels=outchannel, kernel_size=1, stride=1,
+                                      bias=False, Conv2d=Conv2d)
+        self.batch1 = build_norm_layer(features=outchannel, **norm_layer)
+        self.conv2 = build_conv_layer(in_channels=outchannel, out_channels=outchannel, kernel_size=3, stride=stride,
+                                      padding=1, groups=groups, bias=False, Conv2d=Conv2d)
+        self.batch2 = build_norm_layer(features=outchannel, **norm_layer)
+        self.conv3 = build_conv_layer(in_channels=outchannel, out_channels=outchannel * expansion, kernel_size=1,
+                                      stride=1, bias=False, Conv2d=Conv2d)
+        self.batch3 = build_norm_layer(features=outchannel * expansion, **norm_layer)
         self.relu = ops.Relu()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class BasicConv(Module):
     """Create BasicConv Searchspace."""
 
-    def __init__(self, inchannel, outchannel, groups=1, base_width=64, stride=1):
+    def __init__(self, inchannel, outchannel, groups=1, base_width=64, stride=1, norm_layer={"norm_type": 'BN'},
+                 Conv2d='Conv2d'):
         """Create BasicConv layer.
 
         :param inchannel: input channel.
@@ -82,16 +85,16 @@ class BasicConv(Module):
         :type stride: int
         """
         super(BasicConv, self).__init__()
-        self.conv = ops.Conv2d(in_channels=inchannel, out_channels=outchannel, kernel_size=3, stride=stride,
-                               padding=1, groups=groups, bias=False)
-        self.batch = ops.BatchNorm2d(num_features=outchannel)
+        self.conv = build_conv_layer(in_channels=inchannel, out_channels=outchannel, kernel_size=3, stride=stride,
+                                     padding=1, groups=groups, bias=False, Conv2d=Conv2d)
+        self.batch = build_norm_layer(features=outchannel, **norm_layer)
         self.relu = ops.Relu(inplace=True)
-        self.conv2 = ops.Conv2d(in_channels=outchannel, out_channels=outchannel, kernel_size=3,
-                                padding=1, groups=groups, bias=False)
-        self.batch2 = ops.BatchNorm2d(num_features=outchannel)
+        self.conv2 = build_conv_layer(in_channels=outchannel, out_channels=outchannel, kernel_size=3, stride=1,
+                                      padding=1, groups=groups, bias=False, Conv2d=Conv2d)
+        self.batch2 = build_norm_layer(features=outchannel, **norm_layer)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class SmallInputInitialBlock(Module):
     """Create SmallInputInitialBlock SearchSpace."""
 
@@ -108,7 +111,7 @@ class SmallInputInitialBlock(Module):
         self.relu = ops.Relu()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class InitialBlock(Module):
     """Create InitialBlock SearchSpace."""
 
@@ -125,13 +128,14 @@ class InitialBlock(Module):
         self.maxpool2d = ops.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class BasicBlock(Module):
     """Create BasicBlock SearchSpace."""
 
     expansion = 1
 
-    def __init__(self, inchannel, outchannel, groups=1, base_width=64, stride=1):
+    def __init__(self, inchannel, outchannel, groups=1, base_width=64, stride=1, norm_layer={"norm_type": 'BN'},
+                 Conv2d='Conv2d'):
         """Create BasicBlock layers.
 
         :param inchannel: input channel.
@@ -143,20 +147,21 @@ class BasicBlock(Module):
         """
         super(BasicBlock, self).__init__()
         base_conv = BasicConv(inchannel=inchannel, outchannel=outchannel, stride=stride,
-                              groups=groups, base_width=base_width)
+                              groups=groups, base_width=base_width, norm_layer=norm_layer, Conv2d=Conv2d)
         shortcut = ShortCut(inchannel=inchannel, outchannel=outchannel, expansion=self.expansion,
-                            stride=stride)
+                            stride=stride, norm_layer=norm_layer)
         self.block = Add(base_conv, shortcut)
         self.relu = ops.Relu()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class BottleneckBlock(Module):
     """Create BottleneckBlock SearchSpace."""
 
     expansion = 4
 
-    def __init__(self, inchannel, outchannel, groups=1, base_width=64, stride=1):
+    def __init__(self, inchannel, outchannel, groups=1, base_width=64, stride=1, norm_layer={"norm_type": 'BN'},
+                 Conv2d='Conv2d'):
         """Create BottleneckBlock layers.
 
         :param inchannel: input channel.
@@ -168,13 +173,15 @@ class BottleneckBlock(Module):
         """
         super(BottleneckBlock, self).__init__()
         bottle_conv = BottleConv(inchannel=inchannel, outchannel=outchannel, expansion=self.expansion,
-                                 stride=stride, groups=groups, base_width=base_width)
-        shortcut = ShortCut(inchannel=inchannel, outchannel=outchannel, expansion=self.expansion, stride=stride)
+                                 stride=stride, groups=groups, base_width=base_width, norm_layer=norm_layer,
+                                 Conv2d=Conv2d)
+        shortcut = ShortCut(inchannel=inchannel, outchannel=outchannel, expansion=self.expansion, stride=stride,
+                            norm_layer=norm_layer)
         self.block = Add(bottle_conv, shortcut)
         self.relu = ops.Relu()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class PruneBasicBlock(Module):
     """Basic block class in prune resnet."""
 
@@ -189,7 +196,7 @@ class PruneBasicBlock(Module):
         self.relu3 = ops.Relu()
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class PruneBasicConv(Module):
     """Create PruneBasicConv Searchspace."""
 
@@ -203,3 +210,50 @@ class PruneBasicConv(Module):
         self.conv2 = ops.Conv2d(inner_plane, planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = ops.BatchNorm2d(planes)
         self.relu2 = ops.Relu()
+
+
+@ClassFactory.register(ClassType.NETWORK)
+class TextConvBlock(Module):
+    """Create Conv Block in text CNN."""
+
+    def __init__(self, in_channels=1, out_channels=16, kernel_size=(3, 3)):
+        super(TextConvBlock, self).__init__()
+        self.conv1 = ops.Conv2d(in_channels, out_channels=out_channels, kernel_size=kernel_size)
+        self.squeeze = ops.Squeeze(3)
+        self.relu = ops.Relu()
+        self.max_pool = ops.GlobalMaxPool1d()
+        self.squeeze2 = ops.Squeeze(-1)
+
+
+def build_norm_layer(features, norm_type='BN', **kwargs):
+    """Build norm layers according to their type.
+
+    :param features: input tensor.
+    :param norm_type: type of norm layer.
+    :param **kwargs: other optional parameters.
+    """
+    if norm_type == 'BN':
+        return ops.BatchNorm2d(features, **kwargs)
+    elif norm_type == 'GN':
+        assert 'num_groups' in kwargs.keys(), 'num_groups is required for group normalization'
+        num_groups = kwargs.pop('num_groups')
+        return ops.GroupNorm(num_groups, features, **kwargs)
+    elif norm_type == 'Sync':
+        return ops.SyncBatchNorm(features, **kwargs)
+    else:
+        raise ValueError('norm type {} is not defined'.format(norm_type))
+
+
+def build_conv_layer(in_channels, out_channels, kernel_size, bias, Conv2d, padding=0, groups=1, stride=1):
+    """Build conv layers according to their type.
+
+    :param features: input tensor.
+    :param norm_type: type of norm layer.
+    :param **kwargs: other optional parameters.
+    """
+    if Conv2d == 'Conv2d':
+        return ops.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
+                          padding=padding, groups=groups, bias=bias)
+    elif Conv2d == 'ConvWS2d':
+        return ops.ConvWS2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
+                            padding=padding, groups=groups, bias=bias)

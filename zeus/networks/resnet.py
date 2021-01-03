@@ -15,11 +15,11 @@ from .resnet_general import ResNetGeneral
 from zeus.modules.operators.ops import Linear, AdaptiveAvgPool2d, View
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ResNet(Module):
     """Create ResNet SearchSpace."""
 
-    def __init__(self, depth=18, init_plane=64, out_plane=None, stage=4, num_class=10, small_input=True,
+    def __init__(self, depth=18, base_channel=64, out_plane=None, stage=4, num_class=10, small_input=True,
                  doublechannel=None, downsample=None):
         """Create layers.
 
@@ -31,8 +31,8 @@ class ResNet(Module):
         :type num_class: int
         """
         super(ResNet, self).__init__()
-        self.backbone = ResNetGeneral(small_input, init_plane, depth, stage, doublechannel, downsample)
+        self.backbone = ResNetGeneral(small_input, base_channel, depth, stage, doublechannel, downsample)
         self.adaptiveAvgPool2d = AdaptiveAvgPool2d(output_size=(1, 1))
         self.view = View()
-        out_plane = out_plane or self.backbone.output_channel
+        out_plane = out_plane or self.backbone.out_channels
         self.head = Linear(in_features=out_plane, out_features=num_class)

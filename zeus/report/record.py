@@ -29,6 +29,7 @@ class ReportRecord(object):
         self._objective_keys = None
         self._rewards = None
         self._runtime = {}
+        self._original_rewards = None
         if kwargs:
             for key, value in kwargs.items():
                 setattr(self, key, value)
@@ -36,6 +37,11 @@ class ReportRecord(object):
     def __hash__(self):
         """Override hash code."""
         return hash(self.uid)
+
+    @property
+    def code(self):
+        """Hash code of record."""
+        return hash(self.__repr__())
 
     def __eq__(self, other):
         """Override eq func, step name and worker id is same."""
@@ -48,7 +54,7 @@ class ReportRecord(object):
              'performance': self._performance, 'checkpoint_path': self._checkpoint_path,
              'model_path': self._model_path, 'weights_file': self._weights_file, 'info': self._info,
              'objectives': self._objectives, '_objective_keys': self._objective_keys, 'rewards': self.rewards,
-             'runtime': self._runtime})
+             'original_rewards': self._original_rewards, 'runtime': self._runtime})
 
     def __gt__(self, other):
         """Override gt for sorted according to performance attr."""
@@ -183,13 +189,19 @@ class ReportRecord(object):
         if not self.objective_keys:
             self._objective_keys = list(self.performance.keys())
         res = []
+        res_ori = []
         for obj in self.objective_keys:
             if isinstance(obj, int):
                 obj = list(self.performance.keys())[obj]
             value = self.performance.get(obj)
+            ori_value = value
+            # if value is None:
+            #     raise ValueError("objective_keys in search_algorithm should be the same in trainer.metrics.")
             if self.objectives.get(obj) == 'MIN':
                 value = -value
             res.append(value)
+            res_ori.append(ori_value)
+        self._original_rewards = res_ori[0] if len(res_ori) == 1 else res_ori
         return res[0] if len(res) == 1 else res
 
     @rewards.setter

@@ -21,6 +21,14 @@ class OptimConfig(ConfigSerializable):
     params = {"lr": 0.1}
 
     @classmethod
+    def from_json(cls, data, skip_check=True):
+        """Restore config from a dictionary or a file."""
+        cls = super(OptimConfig, cls).from_json(data, skip_check)
+        if "params" not in data:
+            cls.params = {}
+        return cls
+
+    @classmethod
     def rules(cls):
         """Return rules for checking."""
         rules = {"type": {"type": str},
