@@ -28,7 +28,7 @@ elif zeus.is_npu_device() and zeus.is_tf_backend():
     from npu_bridge.estimator.npu.npu_optimizer import NPUDistributedOptimizer
 
 if zeus.is_tf_backend():
-    from zeus.trainer.modules.optimizer.optimizer import dynamic_optimizer
+    from zeus.trainer.modules.optimizer.optimizer import dynamic_optimizer, dynamic_distributed_optimizer
 
 
 class Optimizer(object):
@@ -61,14 +61,9 @@ class Optimizer(object):
                 learnable_params = [param for param in model.parameters() if param.requires_grad]
                 optimizer = self.optim_cls(learnable_params, **params)
                 if distributed:
-                    optimizer = hvd.DistributedOptimizer(optimizer,
-                                                         named_parameters=model.named_parameters(),
-                                                         compression=hvd.Compression.none)
+                    optimizer = self.set_distributed(optimizer, model)
             elif zeus.is_tf_backend():
                 optimizer = dynamic_optimizer(self.optim_cls, **params)
-                if distributed:
-                    optimizer = hvd.DistributedOptimizer(optimizer) if zeus.is_gpu_device() else \
-                        NPUDistributedOptimizer(optimizer)
             elif zeus.is_ms_backend():
                 learnable_params = [param for param in model.trainable_params() if param.requires_grad]
                 optimizer = self.optim_cls(learnable_params, **params)
@@ -76,6 +71,18 @@ class Optimizer(object):
         except Exception as ex:
             logging.error("Failed to call Optimizer name={}, params={}".format(self.optim_cls.__name__, params))
             raise ex
+
+    @classmethod
+    def set_distributed(cls, optimizer, model=None):
+        """Set distributed optimizer."""
+        if zeus.is_torch_backend():
+            optimizer = hvd.DistributedOptimizer(optimizer,
+                                                 named_parameters=model.named_parameters(),
+                                                 compression=hvd.Compression.none)
+        elif zeus.is_tf_backend():
+            optim_class = hvd.DistributedOptimizer if zeus.is_gpu_device() else NPUDistributedOptimizer
+            optimizer = dynamic_distributed_optimizer(optim_class, optimizer)
+        return optimizer
 
 
 if zeus.is_torch_backend():

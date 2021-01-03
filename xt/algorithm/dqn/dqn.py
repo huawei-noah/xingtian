@@ -56,6 +56,7 @@ class DQN(Algorithm):
 
         self.target_actor = model_builder(model_info)
         self.buff = ReplayBuffer(BUFFER_SIZE)
+        self.double_dqn = alg_config.get('double_dqn', False)
 
     def train(self, **kwargs):
         """
@@ -75,9 +76,17 @@ class DQN(Algorithm):
         rewards = np.asarray([e[2] for e in batch])
         new_states = np.asarray([e[3] for e in batch])
         dones = np.asarray([e[4] for e in batch])
-        y_t = self.actor.predict(states)
-        target_q_values = self.target_actor.predict(new_states)
-        max_q_val = np.max(target_q_values, 1)
+        if self.double_dqn:
+            y_t = self.actor.predict(states)
+            q_values = self.actor.predict(new_states)
+            best_action = np.argmax(q_values, 1)
+            target_q_values = self.target_actor.predict(new_states)
+            max_q_val = target_q_values[range(len(batch)), best_action]
+        else:
+            y_t = self.actor.predict(states)
+            target_q_values = self.target_actor.predict(new_states)
+            max_q_val = np.max(target_q_values, 1)
+
         for k in range(len(batch)):
             if dones[k]:
                 q_value = rewards[k]
@@ -102,8 +111,12 @@ class DQN(Algorithm):
         :param model_weights:
         :return:
         """
-        self.actor.load_model(model_name)
-        self.target_actor.load_model(model_name)
+        if model_weights is not None:
+            self.actor.set_weights(model_weights)
+            self.target_actor.set_weights(model_weights)
+        else:
+            self.actor.load_model(model_name)
+            self.target_actor.load_model(model_name)
 
     def prepare_data(self, train_data, **kwargs):
         """

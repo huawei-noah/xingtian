@@ -278,7 +278,7 @@ def ArchChannels2Module(feature_fusion_arch_code, in_channels):
         return PseudoFeatureFusionNetwork
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class FeatureFusionModule(nn.Module):
     """FeatureFusionModule backbone.
 

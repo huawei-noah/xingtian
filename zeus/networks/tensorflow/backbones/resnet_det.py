@@ -10,13 +10,11 @@
 
 """Residual Network."""
 import tensorflow as tf
-
 from object_detection.models import faster_rcnn_resnet_v1_feature_extractor as frcnn_resnet_v1
-
 from zeus.common import ClassType, ClassFactory
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ResNetDet(object):
     """ResNet basic Class."""
 

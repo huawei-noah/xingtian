@@ -24,9 +24,9 @@ def import_all_torchvision_models():
             _cls = getattr(module, _name)
             if isinstance(_cls, ModuleType):
                 continue
-            if ClassFactory.is_exists(ClassType.SEARCH_SPACE, 'torchvision_' + _cls.__name__):
+            if ClassFactory.is_exists(ClassType.NETWORK, 'torchvision_' + _cls.__name__):
                 continue
-            ClassFactory.register_cls(_cls, ClassType.SEARCH_SPACE, alias='torchvision_' + _cls.__name__)
+            ClassFactory.register_cls(_cls, ClassType.NETWORK, alias='torchvision_' + _cls.__name__)
 
     _register_models_from_current_module_scope(torchvision_models)
     _register_models_from_current_module_scope(torchvision_models.segmentation)

@@ -131,6 +131,7 @@ class Group_RDB(Module):
             x_InC = self.InConv(x)
             x_inter = self.LFF(self.convs(x_InC))
         else:
+            x_InC = None
             x_inter = self.LFF(self.convs(x))
         if self.OutChan == self.InChan:
             x_return = x + x_inter
@@ -197,6 +198,7 @@ class Shrink_RDB(Module):
             x_conc = ops.concat((x_InC, x_inter))
             x_in = self.ShrinkConv[0](x_conc)
         else:
+            x_InC = None
             x_inter = self.Convs[0](x)
             x_conc = ops.concat((x, x_inter))
             x_in = self.ShrinkConv[0](x_conc)
@@ -269,6 +271,7 @@ class Cont_RDB(Module):
             x_InC = self.InConv(x)
             x_in = self.pool(x_InC)
         else:
+            x_InC = None
             x_in = self.pool(x)
         x_conc = x_in
         for i in range(0, self.C):
@@ -350,17 +353,17 @@ class ERDBLayer(Module):
         """
         x = self.SFENet2(inputs)
 
-        ERDBs_out = []
+        ERDBs_out = ()
         for net in self.ERBD:
             x = net(x)
-            ERDBs_out.append(x)
+            ERDBs_out += (x,)
 
         x = self.GFF(ops.concat(ERDBs_out))
         x += inputs
         return x
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ESRN(Module):
     """Efficient super-resolution networks construction."""
 

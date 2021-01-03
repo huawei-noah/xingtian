@@ -14,6 +14,7 @@ from zeus.modules.connections import OutlistSequential
 from zeus.common import ClassFactory, ClassType
 from zeus.modules.operators import conv_bn_relu6
 from zeus.modules.blocks.micro_decoder import InvertedResidual
+from zeus import is_torch_backend
 
 
 def _make_divisible(v, divisor, min_value=None):
@@ -27,7 +28,7 @@ def _make_divisible(v, divisor, min_value=None):
     return new_v
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MobileNetV3Tiny(Module):
     """Create MobileNetV3Tiny SearchSpace."""
 
@@ -64,9 +65,12 @@ class MobileNetV3Tiny(Module):
                 inp=input_channel, oup=output_channel, stride=lst[2], expand_ratio=lst[0]))
             input_channel = output_channel
         self.block = OutlistSequential(*features, out_list=[3, 6, 13, 17])
+        if load_path is not None and is_torch_backend():
+            import torch
+            self.load_state_dict(torch.load(load_path), strict=False)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MobileNetV2Tiny(Module):
     """Create MobileNetV3Tiny SearchSpace."""
 
@@ -99,3 +103,6 @@ class MobileNetV2Tiny(Module):
                     inp=input_channel, oup=output_channel, stride=stride, expand_ratio=t))
                 input_channel = output_channel
         self.block = OutlistSequential(*features[:18], out_list=[3, 6, 13, 17])
+        if load_path is not None and is_torch_backend():
+            import torch
+            self.load_state_dict(torch.load(load_path), strict=False)

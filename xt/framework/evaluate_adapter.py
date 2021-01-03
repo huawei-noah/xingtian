@@ -18,8 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import csv
 import threading
-from collections import deque
+from collections import deque, defaultdict
 from copy import deepcopy
 from queue import Queue, Empty
 from absl import logging
@@ -31,7 +32,7 @@ from zeus.common.util.default_xt import XtBenchmarkConf as XBConf
 class TesterManager(object):
     """Manage evaluate data."""
 
-    def __init__(self, config_info, broker_master, s3_result_path=None):
+    def __init__(self, config_info, controller, s3_result_path=None):
         self.config_info = config_info
         self.s3_path = s3_result_path
         self.processed_model_count = 0
@@ -39,8 +40,9 @@ class TesterManager(object):
         self.record_station_buf = dict()
         self.eval_rewards = deque([], maxlen=50)
 
-        self.recv_broker = broker_master.register("eval_result")
-        self.send_broker = broker_master.recv_local_q
+        # todo: the registered queue need a attribute about the register's name
+        self.recv_broker = controller.register("eval_return", "send")
+        self.send_broker = controller.register("to_eval", "recv")
 
         self.eval_info_queue = Queue()
 
@@ -53,7 +55,7 @@ class TesterManager(object):
 
         self.used_node = dict()
         self.avail_node = list(((i, "test{}".format(tid))
-                                for i in range(broker_master.node_num)
+                                for i in range(controller.node_num)
                                 for tid in range(self.max_instance)))
 
         self.last_eval_index = -9999
@@ -82,10 +84,22 @@ class TesterManager(object):
         if type(train_loss) in (float, np.float64, np.float32, np.float16, np.float):
             train_info.update({"loss": train_loss})
 
-        self.record_station_buf.update({train_count: train_info})
+        self.append_eval_queue(train_count, train_info)
 
         self.put_test_model({train_count: weights})
         # return self.get_avail_node()
+
+    def append_eval_queue(self, train_id, train_info):
+        """Append current train info into eval queue."""
+        self.record_station_buf.update({train_id: train_info})
+
+    @property
+    def eval_result_empty(self):
+        return self.eval_info_queue.empty()
+
+    @property
+    def processed_count(self):
+        return self.processed_model_count
 
     def fetch_eval_result(self):
         """Fetch eval results with no wait."""
@@ -108,12 +122,13 @@ class TesterManager(object):
             eval_info_dict = self.record_station_buf.pop(_model_index)
         else:
             eval_info_dict = dict()
-            print("-->", eval_result)
-            return  # test.api will use print replace write db record
+            # print("-->", eval_result)
+            # return  # test.api will use print replace write db record
         eval_info_dict.update(
             {
                 "agent_id": _agent_id,
-                "eval_reward": np.nanmean(eval_result[0][_agent_id]["reward"]),
+                "eval_episode_reward": np.nanmean(eval_result[0][_agent_id]["epi_reward"]),
+                "eval_step_reward": np.nanmean(eval_result[0][_agent_id]["step_reward"]),
                 "eval_name": _model_index,
             }
         )
@@ -174,3 +189,105 @@ class TesterManager(object):
     def start(self):
         t = threading.Thread(target=self.recv_result)
         t.start()
+
+
+class EvalResultSummary(object):
+    """Analysis the result within divided test case."""
+    def __init__(self, divide_time, target_ids, output_csv="./eval_results.csv"):
+        self._divided_time = divide_time
+
+        self._must_id = "train_id"
+        if not isinstance(target_ids, list):
+            self._ids = [target_ids]
+        else:
+            self._ids = target_ids
+
+        if self._must_id not in self._ids:
+            self._ids.append(self._must_id)
+
+        self._buf = dict()
+
+        # {"train_id@divided_id"}
+        # -- >
+        # {"train_id": {0, 1, 2, 3,...}}
+        self._info = defaultdict(set)
+
+        self._csv = output_csv
+        self._csv_open = open(self._csv, "w+")
+        self._record_writer = csv.DictWriter(self._csv_open, fieldnames=self._ids)
+        self._record_writer.writeheader()
+
+        self.processed_train_ids = list()
+
+    def append(self, eval_results):
+        """Append eval results to buf."""
+        if not eval_results:
+            return
+
+        for _result in eval_results:
+            self._buf[_result["eval_name"]] = _result
+
+            train_id, eval_id = str(_result["eval_name"]).split("@")
+            self._info[train_id].add(eval_id)
+
+    def _train_id_end(self, train_id):
+        return len(self._info[train_id]) == self._divided_time
+
+    def _analysis(self, train_id):
+        ret = {_k: list() for _k in self._ids}
+
+        for _eval_id in self._info[train_id]:
+            eval_name = "{}@{}".format(train_id, _eval_id)
+            eval_result = self._buf.pop(eval_name)
+
+            assert eval_name == eval_result["eval_name"], "{} vs {} mismatch".format(
+                eval_name, eval_result["eval_name"]
+            )
+
+            for _k in ret:
+                if _k not in eval_result:
+                    continue
+
+                ret[_k].append(eval_result[_k])
+
+        ret_sum = {_rk: np.nanmean(ret[_rk]) if ret[_rk] else 0. for _rk in ret}
+        ret_sum.update({"train_id": train_id})
+
+        return ret_sum
+
+    def check_and_archive(self):
+        """Check and archive api."""
+        deal_id = list()
+        single_record = dict()
+        for k in self._info:
+            if not self._train_id_end(k):
+                continue
+
+            single_record = self._analysis(k)
+            self._record_writer.writerow(single_record)
+            deal_id.append(k)
+
+        self._csv_open.flush()
+
+        for k in deal_id:
+            self._info.pop(k)
+
+        self.processed_train_ids.extend(deal_id)
+        return single_record
+
+    @property
+    def processed_ids(self):
+        """Check have processed train ids."""
+        return self.processed_train_ids
+
+    def check_finish_stats(self, target_count):
+        """Check finish stats."""
+        # print(len(self.processed_ids))
+        return len(self.processed_ids) >= target_count
+
+    def close(self):
+        """Close file."""
+        self._csv_open.close()
+
+    def __del__(self):
+        self._csv_open.close()

@@ -18,8 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from xt.model import ACTIVATION_MAP
-from xt.model.mlp_model import get_mlp_backbone, get_mlp_default_settings
+from xt.model.model_utils import ACTIVATION_MAP, get_mlp_backbone, get_mlp_default_settings
 from xt.model.ppo.default_config import MLP_SHARE_LAYERS
 from xt.model.ppo.ppo import PPO
 from xt.model.tf_compat import tf
@@ -45,6 +44,6 @@ class PpoMlp(PPO):
 
     def create_model(self, model_info):
         model = get_mlp_backbone(self.state_dim, self.action_dim, self.hidden_sizes, self.activation,
-                                 self.vf_share_layers, self.verbose)
-        self.build_graph(tf.float32, model)
+                                 self.vf_share_layers, self.verbose, dtype=self.input_dtype)
+        self.build_graph(self.input_dtype, model)
         return model

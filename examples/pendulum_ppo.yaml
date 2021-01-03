@@ -22,18 +22,21 @@ model_para:
     model_name: PpoMlp
     state_dim: [3]
     action_dim: 1
+    input_dtype: float32
     model_config:
       BATCH_SIZE: 200
       CRITIC_LOSS_COEF: 1.0
       ENTROPY_LOSS: 0.01
       LR: 0.0003
       LOSS_CLIPPING: 0.2
-      MAX_GRAD_NORM: 0.5
-      NUM_SGD_ITER: 10
+      MAX_GRAD_NORM: 5.0
+      NUM_SGD_ITER: 8
       SUMMARY: False
       VF_SHARE_LAYERS: False
       activation: tanh
       hidden_sizes: [64, 64]
 
 env_num: 10
-#py_interpreter: python
+
+benchmark:
+  log_interval_to_train: 10

@@ -52,11 +52,12 @@ class Dataset(TaskOps):
         self.train = self.mode in ["train", "val"]
         transforms_list = self._init_transforms()
         self._transforms = Transforms(transforms_list)
-        if "transforms" in kwargs.keys():
-            self._transforms.__transform__ = kwargs["transforms"]
+        # if "transforms" in kwargs.keys():
+        #     self._transforms.__transform__ = kwargs["transforms"]
         self.dataset_init()
         self.world_size = 1
         self.rank = 0
+        self.collate_fn = None
 
     def dataset_init(self):
         """Init Dataset before sampler."""
@@ -75,8 +76,7 @@ class Dataset(TaskOps):
     @transforms.setter
     def transforms(self, value):
         """Set function of transforms."""
-        if isinstance(value, list):
-            self.transforms.__transform__ = value
+        self._transforms = value
 
     def _init_transforms(self):
         """Initialize transforms method.

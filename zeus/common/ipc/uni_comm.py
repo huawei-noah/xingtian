@@ -18,7 +18,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 """Uni comm."""
+
 import threading
+from absl import logging
 from zeus.common.util.register import Registers
 
 
@@ -38,13 +40,13 @@ class UniComm(object):
         """Create common recieve interface."""
         return self.comm.recv(name, block)
 
-    def send_bytes(self, data):
+    def send_bytes(self, ctr_info, data):
         """Create common send_bytes interface."""
-        return self.comm.send_bytes(data)
+        return self.comm.send_bytes(ctr_info, data)
 
-    def recv_bytes(self):
+    def recv_bytes(self, block=True):
         """Create common recv_bytes interface."""
-        return self.comm.recv_bytes()
+        return self.comm.recv_bytes(block)
 
     def send_multipart(self, data):
         """Create common send_multipart interface."""
@@ -58,11 +60,16 @@ class UniComm(object):
         """Delete."""
         return self.comm.delete(name)
 
+    @property
+    def info(self):
+        """Fetch comm info."""
+        return str(self.comm)
+
     def close(self):
         """Close."""
-        print("start_close_comm")
+        logging.debug("start close comm...")
         with self.lock:
             try:
                 self.comm.close()
-            except AttributeError:
-                print("please complete your comm close function")
+            except AttributeError as err:
+                logging.info("call comm.close failed! with: \n{}".format(err))

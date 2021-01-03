@@ -56,7 +56,7 @@ def huber_fun(x):
     return r
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AutoLaneDetector(Module):
     """Faster RCNN."""
 
@@ -75,7 +75,7 @@ class AutoLaneDetector(Module):
                                               class_num=2)
 
         def build_module(net_type_name):
-            return ClassFactory.get_cls(desc[net_type_name].name)(desc[net_type_name])
+            return ClassFactory.get_cls(ClassType.NETWORK, desc[net_type_name].type)(desc[net_type_name])
 
         self.backbone = build_module('backbone')
         self.neck = build_module('neck')

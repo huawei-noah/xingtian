@@ -11,6 +11,7 @@
 """Convert class to string."""
 import json
 import logging
+import numpy as np
 from copy import deepcopy
 from inspect import ismethod, isfunction
 from .config import Config
@@ -21,6 +22,7 @@ from zeus.common.util.check import valid_rule
 
 __all__ = ["ConfigSerializable", "backup_configs"]
 logger = logging.getLogger(__name__)
+exclude_default = ['type', 'hyperparameters']
 
 
 class ConfigSerializable(object):
@@ -47,6 +49,8 @@ class ConfigSerializable(object):
         """Restore config from a dictionary or a file."""
         if not data:
             return cls
+        if cls.__name__ == "ConfigSerializable":
+            return cls
         config = Config(deepcopy(data))
         if not skip_check:
             cls.check_config(config)
@@ -57,6 +61,8 @@ class ConfigSerializable(object):
         # normal config
         for attr in config:
             if not hasattr(cls, attr):
+                if attr not in exclude_default:
+                    logger.debug('{} not in default config ! Please check.'.format(attr))
                 setattr(cls, attr, config[attr])
                 continue
             class_value = getattr(cls, attr)
@@ -65,18 +71,11 @@ class ConfigSerializable(object):
                 setattr(cls, attr, class_value.from_json(config_value, skip_check))
             else:
                 setattr(cls, attr, config_value)
-        # PipeStepConfig
-        if cls.__name__ == "PipeStepConfig":
-            if "pipe_step" in data:
-                if "type" in data["pipe_step"]:
-                    cls.type = data["pipe_step"]["type"]
-                if "models_folder" in data["pipe_step"]:
-                    cls.models_folder = data["pipe_step"]["models_folder"]
         return cls
 
     def __repr__(self):
         """Serialize config to a string."""
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_json(), cls=NpEncoder)
 
     @classmethod
     def check_config(cls, config):
@@ -89,9 +88,9 @@ class ConfigSerializable(object):
         return {}
 
     @classmethod
-    def backup_original_value(cls):
+    def backup_original_value(cls, force=False):
         """Backup class original data."""
-        if not cls.__original__value__:
+        if not cls.__original__value__ or force:
             cls.__original__value__ = cls().to_json()
         return cls.__original__value__
 
@@ -100,6 +99,11 @@ class ConfigSerializable(object):
         """Restore class original data."""
         if cls.__original__value__:
             cls.from_json(cls.__original__value__)
+
+    @classmethod
+    def get_config(cls):
+        """Get sub config."""
+        return {}
 
 
 def _is_link_config(_cls):
@@ -127,8 +131,12 @@ def _load_link_config(_cls, config):
         setattr(_cls, "type", class_name)
         if class_data:
             setattr(_cls, "_class_data", config_cls.from_json(class_data))
+            valid_rule(_cls._class_data, config, _cls._class_data.rules())
+            for key, sub in _cls._class_data.get_config().items():
+                if key in config.keys():
+                    valid_rule(sub, config[key], sub.rules())
         else:
-            setattr(_cls, "_class_data", config_cls)
+            setattr(_cls, "_class_data", None)
     else:
         logger.error("Failed to unserialize config, class={}, config={}".format(
             str(_cls()), str(config)))
@@ -155,3 +163,18 @@ def _get_all_config_cls(classes, base_class):
     for subclass in subclasses:
         classes.append(subclass)
         _get_all_config_cls(classes, subclass)
+
+
+class NpEncoder(json.JSONEncoder):
+    """Serialize numpy to default."""
+
+    def default(self, obj):
+        """Change type of obj."""
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)

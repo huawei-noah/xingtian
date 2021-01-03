@@ -11,7 +11,7 @@
 """Report callback defination."""
 import logging
 from .callback import Callback
-from zeus.report import Report
+from zeus.report import ReportClient
 from zeus.common import ClassFactory, ClassType
 
 
@@ -38,10 +38,10 @@ class ReportCallback(Callback):
     def after_train(self, logs=None):
         """Close the connection of report."""
         self._broadcast(self.epoch)
-        Report().close(self.trainer.step_name, self.trainer.worker_id)
+        ReportClient.close(self.trainer.step_name, self.trainer.worker_id)
 
     def _broadcast(self, epoch=None):
-        record = Report().receive(self.trainer.step_name, self.trainer.worker_id)
+        record = ReportClient.get_record(self.trainer.step_name, self.trainer.worker_id)
         if self.trainer.config.report_on_epoch:
             record.epoch = self.trainer.epochs
         # todo: remove in FinedGrainedSpace
@@ -54,7 +54,7 @@ class ReportCallback(Callback):
         if record.performance is not None:
             for key in record.performance:
                 if key not in record.objectives:
-                    if (key == 'flops' or key == 'params'):
+                    if (key == 'flops' or key == 'params' or key == 'latency'):
                         record.objectives.update({key: 'MIN'})
                     else:
                         record.objectives.update({key: 'MAX'})
@@ -63,5 +63,5 @@ class ReportCallback(Callback):
         record.weights_file = self.trainer.weights_file
         if self.trainer.runtime is not None:
             record.runtime = self.trainer.runtime
-        Report().broadcast(record)
+        ReportClient.broadcast(record)
         logging.debug("report_callback record: {}".format(record))

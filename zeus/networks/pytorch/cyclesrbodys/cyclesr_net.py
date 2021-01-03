@@ -43,7 +43,7 @@ def define_SR(opt, use_cuda, use_distributed):
     return net
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class CycleSRModel(TransModel):
     """CycleSRModel Class definition.
 

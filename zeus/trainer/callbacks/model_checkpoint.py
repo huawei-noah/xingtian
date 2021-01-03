@@ -9,7 +9,8 @@
 # MIT License for more details.
 
 """ModelCheckpoint callback defination."""
-import pickle
+import os
+import glob
 import logging
 import zeus
 from .callback import Callback
@@ -18,6 +19,8 @@ from zeus.common import ClassFactory, ClassType
 
 if zeus.is_torch_backend():
     import torch
+elif zeus.is_tf_backend():
+    import tensorflow as tf
 
 
 @ClassFactory.register(ClassType.CALLBACK)
@@ -32,9 +35,13 @@ class ModelCheckpoint(Callback):
     def before_train(self, logs=None):
         """Be called before the training process."""
         self.is_chief = self.params['is_chief']
+        if self.trainer.load_checkpoint:
+            self._load_checkpoint()
 
     def after_epoch(self, epoch, logs=None):
         """Be called after each epoch."""
+        if not self.trainer.config.save_checkpoint:
+            return
         self._save_checkpoint(epoch)
         if self.is_chief and logs.get('summary_perfs').get('best_valid_perfs_changed', False):
             self._save_best_model()
@@ -43,6 +50,17 @@ class ModelCheckpoint(Callback):
         """Save best model."""
         if zeus.is_torch_backend():
             torch.save(self.trainer.model.state_dict(), self.trainer.weights_file)
+        elif zeus.is_tf_backend():
+            worker_path = self.trainer.get_local_worker_path()
+            model_id = "model_{}".format(self.trainer.worker_id)
+            weights_folder = FileOps.join_path(worker_path, model_id)
+            FileOps.make_dir(weights_folder)
+            checkpoint_file = tf.train.latest_checkpoint(worker_path)
+            ckpt_globs = glob.glob("{}.*".format(checkpoint_file))
+            for _file in ckpt_globs:
+                dst_file = model_id + os.path.splitext(_file)[-1]
+                FileOps.copy_file(_file, FileOps.join_path(weights_folder, dst_file))
+            FileOps.copy_file(FileOps.join_path(worker_path, 'checkpoint'), weights_folder)
 
     def _save_checkpoint(self, epoch):
         """Save checkpoint."""
@@ -60,3 +78,24 @@ class ModelCheckpoint(Callback):
             }
             torch.save(ckpt, checkpoint_file)
         self.trainer.checkpoint_file = checkpoint_file
+
+    def _load_checkpoint(self):
+        """Load checkpoint."""
+        if zeus.is_torch_backend():
+            checkpoint_file = FileOps.join_path(
+                self.trainer.get_local_worker_path(), self.trainer.checkpoint_file_name)
+            if os.path.exists(checkpoint_file):
+                try:
+                    logging.info("Load checkpoint file, file={}".format(checkpoint_file))
+                    checkpoint = torch.load(checkpoint_file)
+                    self.trainer.model.load_state_dict(checkpoint["weight"])
+                    self.trainer.optimizer.load_state_dict(checkpoint["optimizer"])
+                    self.trainer.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+                    if self.trainer._resume_training:
+                        epoch = checkpoint["epoch"]
+                        self.trainer._start_epoch = checkpoint["epoch"]
+                        logging.info("Resume fully train, change start epoch to {}".format(self.trainer._start_epoch))
+                except Exception as e:
+                    logging.info("Load checkpoint failed {}".format(e))
+            else:
+                logging.info('Use default model')

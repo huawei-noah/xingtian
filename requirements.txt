@@ -3,13 +3,13 @@ h5py
 gym[atari]
 tqdm
 imageio
-matplotlib==3.0.3
+matplotlib
 Ipython
 pyyaml
-pyarrow==0.14.0
+pyarrow
 lz4
 fabric2
-redis
 absl-py
 psutil
 tensorboardX
+setproctitle

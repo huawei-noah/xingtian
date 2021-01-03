@@ -98,7 +98,8 @@ class ImpalaMlpNet(Module):
         state_dim = descript.get("state_dim")
         action_dim = descript.get("action_dim")
 
-        self.fc2 = Sequential(Linear(state_dim, HIDDEN_SIZE), Linear(HIDDEN_SIZE, action_dim), Lambda(lambda x: softmax(x)))
+        self.fc2 = Sequential(Linear(state_dim, HIDDEN_SIZE), Linear(HIDDEN_SIZE, action_dim),
+                              Lambda(lambda x: softmax(x)))
         self.fc3 = Sequential(Linear(state_dim, HIDDEN_SIZE), Linear(HIDDEN_SIZE, 1))
 
         # self.out = MultiOutput(fc2, fc3)

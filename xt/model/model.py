@@ -21,7 +21,7 @@
 
 import os
 import glob
-from xt.model.tf_compat import tf, K
+from xt.model.tf_compat import tf, K, get_sess_graph
 from xt.model.pb_format import pb_model
 
 os.environ["KERAS_BACKEND"] = "tensorflow"
@@ -44,15 +44,13 @@ class XTModel(object):
         Now, we used the keras's API to create models.
         :param model_info:
         """
-        self.graph = tf.Graph()
-
+        sess, self.graph = get_sess_graph()
         # User Could assign it within create model.
         self.actor_var = None
+        self._summary = model_info.get("summary", False)
 
         with self.graph.as_default():
-            config = tf.ConfigProto()
-            config.gpu_options.allow_growth = True
-            sess = tf.compat.v1.Session(config=config)
+            # init sess within the graph without assign the graph into sess.
             self.sess = sess
             K.set_session(self.sess)
             self.model_format = model_info.get('model_format')
@@ -75,7 +73,7 @@ class XTModel(object):
         Do predict use the newest model.
 
         :param state:
-        :return:
+        :return: output tensor ref to policy.model
         """
         with self.graph.as_default():
             K.set_session(self.sess)
@@ -106,9 +104,15 @@ class XTModel(object):
     def save_model(self, file_name):
         """Save weights into .h5 file."""
         # check max model file to keep
-        check_keep_model(os.path.dirname(file_name), self.max_to_keep)
+        if self.max_to_keep > -1:
+            check_keep_model(os.path.dirname(file_name), self.max_to_keep)
 
-        self.actor_var.save_weights(file_name + ".npz")
+        if self.actor_var:
+            self.actor_var.save_weights(file_name + ".npz")
+        else:
+            with self.graph.as_default():  # keras
+                K.set_session(self.sess)
+                self.model.save_weights(file_name)
 
         if self.model_format == 'pb':
             pb_model(self.model, file_name)
@@ -124,6 +128,7 @@ class XTModel(object):
 
 
 def check_keep_model(model_path, keep_num):
+    """Check model saved count under path."""
     target_file = glob.glob(os.path.join(model_path, "actor*".format(model_path)))
     if len(target_file) > keep_num:
         to_rm_model = sorted(target_file, reverse=True)[keep_num:]

@@ -18,9 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-
-from xt.model import ACTIVATION_MAP
-from xt.model.cnn_model import get_cnn_backbone, get_cnn_default_settings, get_default_filters
+from xt.model.model_utils import ACTIVATION_MAP, get_cnn_backbone, get_cnn_default_settings, get_default_filters
 from xt.model.ppo.default_config import CNN_SHARE_LAYERS
 from xt.model.ppo.ppo import PPO
 from xt.model.tf_compat import tf
@@ -46,7 +44,7 @@ class PpoCnn(PPO):
 
     def create_model(self, model_info):
         filter_arches = get_default_filters(self.state_dim)
-        model = get_cnn_backbone(self.state_dim, self.action_dim, self.hidden_sizes, self.activation,
-                                 filter_arches, self.vf_share_layers, self.verbose)
-        self.build_graph(tf.uint8, model)
+        model = get_cnn_backbone(self.state_dim, self.action_dim, self.hidden_sizes, self.activation, filter_arches,
+                            self.vf_share_layers, self.verbose, dtype=self.input_dtype)
+        self.build_graph(self.input_dtype, model)
         return model

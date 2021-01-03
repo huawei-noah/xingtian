@@ -18,10 +18,10 @@ with codecs.open(os.path.join(here, 'requirements.txt'), 'r') as rf:
     for line in rf:
         package = line.strip()
         install_requires.append(package)
-if allow_gpu:
-    install_requires.append("tensorflow-gpu==1.15.0")
-else:
-    install_requires.append("tensorflow==1.15.0")
+# if allow_gpu:
+#     install_requires.append("tensorflow-gpu==1.15.0")
+# else:
+#     install_requires.append("tensorflow==1.15.0")
 
 with open(os.path.join(here, 'xt', '__init__.py')) as f:
     version = re.search(r'__version__ = \'(.*?)\'', f.read()).group(1)

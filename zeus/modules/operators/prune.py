@@ -237,3 +237,43 @@ class PruneResnet(object):
                 elif is_ops_instance(m1, 'Linear'):
                     PruneLinear(m1).apply(end_mask)
         return self.layer
+
+
+class PruneMobileNet(PruneResnet):
+    """Prune MobileNet."""
+
+    def __init__(self, layer):
+        super(PruneMobileNet, self).__init__(layer)
+
+    def apply(self, chn_mask):
+        """Apply mask to resnet."""
+        end_mask = []
+        cur_idx = 1
+        for idx, (name, m1) in enumerate(get_named_modules(self.layer)):
+            name, m1 = parse_module_name(name, m1)
+            if name.startswith('features'):
+                if len(name.split('.')) == 3:
+                    module_length = len(m1._modules)
+                elif len(name.split('.')) == 4:
+                    sequence_idx = (int(name.split('.')[-3]) - 1) * 2
+                    block_idx = int(name.split('.')[-1])
+
+                    if block_idx < 2:
+                        start_mask = chn_mask[sequence_idx - 1] if sequence_idx > 0 else None
+                        end_mask = chn_mask[sequence_idx]
+                    elif block_idx < module_length - 2:
+                        if is_ops_instance(m1, 'Conv2d'):
+                            continue
+                        end_mask = chn_mask[sequence_idx]
+                        start_mask = end_mask
+                    else:
+                        start_mask = end_mask
+                        end_mask = chn_mask[sequence_idx + 1]
+
+                    if is_ops_instance(m1, 'Conv2d'):
+                        PruneConv2D(m1).apply(end_mask, start_mask)
+                    elif is_ops_instance(m1, 'BatchNorm2d'):
+                        PruneBatchNorm(m1).apply(end_mask)
+            elif name.startswith('classifier') and is_ops_instance(m1, 'Linear'):
+                PruneLinear(m1).apply(end_mask)
+        return self.layer

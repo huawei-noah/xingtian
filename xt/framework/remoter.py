@@ -22,7 +22,7 @@ Manage remote node.
 
 Contains:
     0. distribute xingtian wheel to remote node;
-    1. setup broker slave;
+    1. setup broker;
     2. distribute model file to remote node for explore.
 """
 import os

@@ -13,6 +13,7 @@ from torch.autograd import Variable
 import torch
 import subprocess
 import logging
+import os
 
 
 def pytorch2onnx(model, input_shape):
@@ -27,11 +28,16 @@ def pytorch2onnx(model, input_shape):
     """
     # model.load_state_dict(torch.load(weight))
     # Export the trained model to ONNX
-    dump_input = Variable(torch.randn(input_shape)).cuda()
+    dump_input = Variable(torch.randn(input_shape))
+    if os.path.exists("./torch_model.onnx"):
+        os.remove("./torch_model.onnx")
+    if os.path.exists("./torch_model_sim.onnx"):
+        os.remove("./torch_model_sim.onnx")
     torch.onnx.export(model, dump_input, "./torch_model.onnx")
     try:
         subprocess.call("python3 -m onnxsim ./torch_model.onnx ./torch_model_sim.onnx", shell=True)
     except Exception as e:
         logging.error("{}".format(str(e)))
     onnx_model = "./torch_model_sim.onnx"
+
     return onnx_model

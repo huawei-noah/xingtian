@@ -16,7 +16,7 @@ from zeus.common import ClassFactory, ClassType
 from zeus.modules.module import Module
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AdelaideFastNAS(Module):
     """Search space of AdelaideFastNAS."""
 

@@ -14,7 +14,7 @@ from zeus.common import ClassFactory, ClassType
 from zeus.modules.operators import ops
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class PreOneStem(Module):
     """Class of one stem convolution.
 

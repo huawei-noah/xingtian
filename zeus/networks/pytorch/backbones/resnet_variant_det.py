@@ -277,7 +277,7 @@ def make_res_layer(block,
     return nn.Sequential(*layers)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class ResNetVariantDet(nn.Module):
     """ResNetVariantDet backbone.
 

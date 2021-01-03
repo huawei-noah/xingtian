@@ -34,6 +34,7 @@ See https://arxiv.org/abs/1802.01561 for the full paper.
 
 import numpy as np
 
+from functools import partial
 import xt.model.impala.vtrace as vtrace
 from tensorflow.python.util import deprecation
 from zeus.common.util.register import Registers
@@ -52,6 +53,7 @@ from xt.model.tf_compat import (
 )
 from xt.model.atari_model import get_atari_filter
 from xt.model.tf_utils import TFVariables, restore_tf_variable
+from xt.model.model_utils import state_transform, custom_norm_initializer
 from zeus.common.util.common import import_config
 from absl import logging
 
@@ -65,15 +67,23 @@ class ImpalaCnnOpt(XTModel):
     def __init__(self, model_info):
         model_config = model_info.get("model_config", dict())
         import_config(globals(), model_config)
-        self.dtype = DTYPE_MAP.get(model_config.get("dtype", "float32"))
+        self.dtype = DTYPE_MAP.get(model_info.get("default_dtype", "float32"))
+        self.input_dtype = model_info.get("input_dtype", "float32")
+        self.sta_mean = model_info.get("state_mean", 0.)
+        self.sta_std = model_info.get("state_std", 255.)
+
+        self._transform = partial(state_transform,
+                                  mean=self.sta_mean,
+                                  std=self.sta_std,
+                                  input_dtype=self.input_dtype)
 
         self.state_dim = model_info["state_dim"]
         self.action_dim = model_info["action_dim"]
         self.filter_arch = get_atari_filter(self.state_dim)
 
         # lr schedule with linear_cosine_decay
-        self.lr_schedule = model_info.get("lr_schedule", None)
-        self.opt_type = model_info.get("opt_type", "adam")
+        self.lr_schedule = model_config.get("lr_schedule", None)
+        self.opt_type = model_config.get("opt_type", "adam")
         self.lr = None
 
         self.ph_state = None
@@ -88,8 +98,8 @@ class ImpalaCnnOpt(XTModel):
         self.ph_rewards = None
         self.loss, self.optimizer, self.train_op = None, None, None
 
-        self.grad_norm_clip = 40.0
-        self.sample_batch_steps = 50
+        self.grad_norm_clip = model_config.get("grad_norm_clip", 40.0)
+        self.sample_batch_steps = model_config.get("sample_batch_step", 50)
 
         self.saver = None
         self.explore_paras = None
@@ -98,12 +108,12 @@ class ImpalaCnnOpt(XTModel):
         super().__init__(model_info)
 
     def create_model(self, model_info):
-        self.ph_state = tf.placeholder(tf.int8,
+        self.ph_state = tf.placeholder(self.input_dtype,
                                        shape=(None, *self.state_dim),
                                        name="state_input")
 
         with tf.variable_scope("explore_agent"):
-            state_input = Lambda(lambda x: tf.cast(x, dtype="float32") / 128.0)(self.ph_state)
+            state_input = Lambda(self._transform)(self.ph_state)
             last_layer = state_input
 
             for (out_size, kernel, stride) in self.filter_arch[:-1]:
@@ -206,16 +216,15 @@ class ImpalaCnnOpt(XTModel):
 
         self.train_op = optimizer.apply_gradients(clipped_gvs, global_step=global_step)
 
-        # help to show the learning rate among training processing
-
+        # fixme: help to show the learning rate among training processing
         self.lr = optimizer._lr
 
         self.actor_var = TFVariables(self.out_actions, self.sess)
 
         self.sess.run(global_variables_initializer())
 
-        self.explore_paras = tf.compat.v1.get_collection(
-            tf.compat.v1.GraphKeys.TRAINABLE_VARIABLES,
+        self.explore_paras = tf.get_collection(
+            tf.GraphKeys.TRAINABLE_VARIABLES,
             scope="explore_agent")
 
         self.saver = Saver({t.name: t for t in self.explore_paras}, max_to_keep=self.max_to_keep)
@@ -340,13 +349,3 @@ def vtrace_loss(
     entropy_loss = calc_entropy_loss(tp_logic_outs)
 
     return pi_loss + 0.5 * val_loss + 0.01 * entropy_loss
-
-
-def custom_norm_initializer(std=0.5):
-    """Customize norm initializer for op."""
-    def _initializer(shape, dtype=None, partition_info=None):
-        out = np.random.randn(*shape).astype(np.float32)
-        out *= std / np.sqrt(np.square(out).sum(axis=0, keepdims=True))
-        return tf.constant(out)
-
-    return _initializer

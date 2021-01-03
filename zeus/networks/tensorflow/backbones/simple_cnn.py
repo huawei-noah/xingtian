@@ -14,7 +14,7 @@ from zeus.common import ClassType, ClassFactory
 from zeus.common import Config
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class SimpleCnn(object):
     """Simple Cnn Network of classification.
 
@@ -35,6 +35,7 @@ class SimpleCnn(object):
         self.fc = tf.layers.dense
         self.dropout = tf.layers.dropout
         self.relu = tf.nn.relu
+        self.training = True
 
     def _custom_dtype_getter(self, getter, name, shape=None, dtype=tf.float32, *args, **kwargs):
         """Convert variable of operation into tf.float16."""
@@ -48,9 +49,10 @@ class SimpleCnn(object):
         """Define Scope of model variable."""
         return tf.variable_scope('simple_cnn', custom_getter=self._custom_dtype_getter)
 
-    def __call__(self, inputs, training):
+    def __call__(self, inputs):
         """Call Simple Cnn forward function."""
         with self._model_variable_scope():
+            training = self.training
             inputs = tf.transpose(inputs, [0, 2, 3, 1])
             inputs = self.conv(inputs, filters=32, kernel_size=[3, 3], padding='same', activation=self.relu)
             inputs = self.pool(inputs, pool_size=[2, 2], strides=2)
@@ -64,7 +66,7 @@ class SimpleCnn(object):
             logits = tf.identity(logits, 'logits')
             return logits
 
-    def _block(self, channels, inputs, training):
+    def _block(self, channels, inputs, training=True):
         """Define basic block in simple cnn."""
         inputs = self.conv(inputs, filters=channels, kernel_size=[3, 3], padding='same')
         inputs = self.bn(inputs, training=training, scale=True, fused=True)

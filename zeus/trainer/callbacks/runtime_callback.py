@@ -53,4 +53,6 @@ class RuntimeCallback(Callback):
 
     def after_train(self, logs=None):
         """Restore train time in trainer."""
+        if 'train' not in self.whole_time:
+            return
         self.trainer.runtime = self.whole_time['train']

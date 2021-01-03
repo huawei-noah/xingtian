@@ -35,7 +35,7 @@ def weight_variable():
     return TruncatedNormal(0.02)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class SimpleCnn(nn.Cell):
     """Lenet network structure."""
 

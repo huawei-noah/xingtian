@@ -14,11 +14,12 @@ import torch
 from torch.autograd import Variable
 import logging
 import pickle
-sys.path.append('../third_party/PytorchToCaffe-master/')
-import pytorch_to_caffe  # noqa
+import os
+
+sys.path.append('../../third_party/PytorchToCaffe-master/')
 
 
-def pytorch2caffe(model, input_shape):
+def pytorch2caffe(model, input_shape, save_dir):
     """Convert the pytorch model to onnx model.
 
     :param model: pytorch model class
@@ -28,22 +29,26 @@ def pytorch2caffe(model, input_shape):
     :param onnx_save_path: the path and filename to save the onnx model file
     :type onnx_save_path: str
     """
+    import pytorch_to_caffe  # noqa
     name = 'torch2caffe'
+    if model.is_cuda:
+        model = model.cpu()
     model.eval()
-    input = Variable(torch.ones(input_shape)).cuda()
+    input = Variable(torch.ones(input_shape))
     pytorch_to_caffe.trans_net(model, input, name)
-    pytorch_to_caffe.save_prototxt('{}.prototxt'.format(name))
-    pytorch_to_caffe.save_caffemodel('{}.caffemodel'.format(name))
+    prototxt_file = os.path.join(save_dir, "torch2caffe.prototxt")
+    caffemodel_file = os.path.join(save_dir, "torch2caffe.caffemodel")
+    pytorch_to_caffe.save_prototxt(prototxt_file)
+    pytorch_to_caffe.save_caffemodel(caffemodel_file)
     logging.info("pytorch2caffe finished.")
-
-    return '{}.prototxt'.format(name), '{}.caffemodel'.format(name)
 
 
 if __name__ == "__main__":
     model_file = sys.argv[1]
     shape_file = sys.argv[2]
+    save_dir = os.path.dirname(model_file)
     with open(model_file, "rb") as f:
         model = pickle.load(f)
     with open(shape_file, "rb") as f:
         input_shape = pickle.load(f)
-    pytorch2caffe(model, input_shape)
+    pytorch2caffe(model, input_shape, save_dir)

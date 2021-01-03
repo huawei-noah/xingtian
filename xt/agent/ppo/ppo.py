@@ -31,10 +31,6 @@ class PPO(Agent):
     """Build base agent with PPO algorithm."""
     def __init__(self, env, alg, agent_config, **kwargs):
         super().__init__(env, alg, agent_config, **kwargs)
-        self.next_state = None
-        self.next_action = None
-        self.next_value = None
-        self.next_log_p = None
 
     def infer_action(self, state, use_explore):
         """
@@ -44,46 +40,37 @@ class PPO(Agent):
         :param use_explore:
         :return: action value
         """
-        if self.next_state is None:
-            s_t = state
-            predict_val = self.alg.predict(s_t)
-            action = predict_val[0][0]
-            log_p = predict_val[1][0]
-            value = predict_val[2][0]
-        else:
-            s_t = self.next_state
-            action = self.next_action
-            value = self.next_value
-            log_p = self.next_log_p
+        predict_val = self.alg.predict(state)
+        return self.handel_predict_value(state, predict_val)
+
+    def handel_predict_value(self, state, predict_val):
+        action = predict_val[0][0]
+        logp = predict_val[1][0]
+        value = predict_val[2][0]
 
         # update transition data
         self.transition_data.update({
-            'cur_state': s_t,
+            'cur_state': state,
             'action': action,
-            'log_p': log_p,
+            'logp': logp,
             'value': value,
         })
 
         return action
 
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
-        self.next_state = next_raw_state
-        predict_val = self.alg.predict(self.next_state)
-
-        self.next_action = predict_val[0][0]
-        self.next_log_p = predict_val[1][0]
-        self.next_value = predict_val[2][0]
 
         self.transition_data.update({
             'reward': reward,
-            'next_value': self.next_value,
             'done': done,
             'info': info
         })
 
         return self.transition_data
 
-    def get_trajectory(self):
+    def get_trajectory(self, last_pred=None):
+        last_val = last_pred[2][0]
+        self.trajectory['value'].append(last_val)
         self.data_proc()
         return super().get_trajectory()
 
@@ -92,11 +79,13 @@ class PPO(Agent):
         traj = self.trajectory
         state = np.asarray(traj['cur_state'])
         action = np.asarray(traj['action'])
-        log_p = np.asarray(traj['log_p'])
+        logp = np.asarray(traj['logp'])
         value = np.asarray(traj['value'])
         reward = np.asarray(traj['reward'])
-        next_value = np.asarray(traj['next_value'])
         done = np.asarray(traj['done'])
+
+        next_value = value[1:]
+        value = value[:-1]
 
         done = np.expand_dims(done, axis=1)
         reward = np.expand_dims(reward, axis=1)
@@ -109,9 +98,9 @@ class PPO(Agent):
 
         self.trajectory['cur_state'] = state
         self.trajectory['action'] = action
-        self.trajectory['log_p'] = log_p
+        self.trajectory['logp'] = logp
         self.trajectory['adv'] = adv
         self.trajectory['old_value'] = value
         self.trajectory['target_value'] = adv + value
 
-        del self.trajectory["next_value"]
+        del self.trajectory['value']

@@ -11,17 +11,14 @@
 """ModelCheckpoint callback defination."""
 import os
 import glob
-import pickle
 import logging
 import zeus
 from .callback import Callback
 from zeus.common import FileOps, Config
-from zeus.networks.network_desc import NetworkDesc
 from zeus.common import ClassFactory, ClassType
 from zeus.networks.model_config import ModelConfig
 from zeus.common.general import General
 from zeus.model_zoo import ModelZoo
-
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +39,12 @@ class ModelBuilder(Callback):
     def _init_model(self):
         """Load model desc from save path and parse to model."""
         model = self.trainer.model
-        model_desc = self._get_model_desc()
+        if self.trainer.config.is_detection_trainer:
+            model_desc = self.trainer.model_desc or self._get_model_desc()
+        else:
+            model_desc = self._get_model_desc()
+        if model_desc:
+            ModelConfig.model_desc = model_desc
         pretrained_model_file = self._get_pretrained_model_file()
         if not model:
             if not model_desc:
@@ -83,14 +85,13 @@ class ModelBuilder(Callback):
                 pattern = FileOps.join_path(folder, "desc_*.json")
                 desc_file = glob.glob(pattern)[0]
                 model_desc = Config(desc_file)
-            else:
-                return None
         return model_desc
 
     def _get_pretrained_model_file(self):
         if ModelConfig.pretrained_model_file:
             model_file = ModelConfig.pretrained_model_file
             model_file = model_file.replace("{local_base_path}", self.trainer.local_base_path)
+            model_file = model_file.replace("{worker_id}", str(self.trainer.worker_id))
             if ":" not in model_file:
                 model_file = os.path.abspath(model_file)
             if ":" in model_file:

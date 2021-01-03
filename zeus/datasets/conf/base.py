@@ -24,3 +24,18 @@ class BaseConfig(ConfigSerializable):
     pin_memory = True
     drop_last = True
     transforms = []
+
+    @classmethod
+    def rules(cls):
+        """Return rules for checking."""
+        rules_Base = {"data_path": {"type": (str, None)},
+                      "batch_size": {"type": int},
+                      "num_workers": {"type": int},
+                      "shuffle": {"type": bool},
+                      "distributed": {"type": bool},
+                      "download": {"type": bool},
+                      "pin_memory": {"type": bool},
+                      "drop_last": {"type": bool},
+                      "transforms": {"type": list},
+                      }
+        return rules_Base

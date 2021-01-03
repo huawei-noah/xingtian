@@ -23,7 +23,7 @@ from xt.model.model_zeus import XTModelZeus
 
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
-from zeus.trainer_api import Trainer
+from zeus.trainer.trainer_api import Trainer
 from zeus.common.class_factory import ClassFactory, ClassType
 from zeus.trainer.modules.conf.loss import LossConfig
 from zeus.trainer.modules.conf.optim import OptimConfig

@@ -12,7 +12,7 @@
 import logging
 from copy import deepcopy
 from enum import Enum
-from inspect import isfunction, isclass
+from inspect import isfunction, isclass, signature as sig
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,10 @@ class ClassType(object):
     LR_SCHEDULER = 'trainer.lr_scheduler'
     LOSS = 'trainer.loss'
     EVALUATOR = 'evaluator'
-    GPU_EVALUATOR = 'evaluator.gpu_evaluator'
+    HOST_EVALUATOR = 'evaluator.host_evaluator'
     HAVA_D_EVALUATOR = 'evaluator.hava_d_evaluator'
-    DAVINCI_MOBILE_EVALUATOR = 'evaluator.davinci_mobile_evaluator'
+    DEVICE_EVALUATOR = 'evaluator.device_evaluator'
     SEARCH_ALGORITHM = 'search_algorithm'
-    SEARCH_SPACE = 'search_space'
     PIPE_STEP = 'pipe_step'
     GENERAL = 'general'
     DATASET = 'dataset'
@@ -39,6 +38,9 @@ class ClassType(object):
     CONFIG = 'CONFIG'
     CODEC = 'search_algorithm.codec'
     QUOTA = 'quota'
+    NETWORK = "network"
+    PRETRAINED_HOOK = 'pretrained_hook'
+    SEARCHSPACE = 'searchspace'
 
 
 class SearchSpaceType(Enum):
@@ -76,7 +78,7 @@ class ClassFactory(object):
                         "Cannot register duplicate class ({})".format(t_cls_name))
                 cls.__registry__[type_name].update({t_cls_name: t_cls})
             if type_name in SearchSpaceType:
-                cls.register_cls(t_cls, ClassType.SEARCH_SPACE, t_cls_name)
+                cls.register_cls(t_cls, ClassType.NETWORK, t_cls_name)
             return t_cls
 
         return wrapper
@@ -146,7 +148,13 @@ class ClassFactory(object):
             if type_name == ClassType.DATASET:
                 t_cls_name = DatasetConfig.type
             elif type_name == ClassType.TRAINER:
-                t_cls_name = "Trainer"
+                import zeus
+                if zeus.is_torch_backend():
+                    t_cls_name = "TrainerTorch"
+                elif zeus.is_tf_backend():
+                    t_cls_name = "TrainerTf"
+                elif zeus.is_ms_backend():
+                    t_cls_name = "TrainerMs"
             elif type_name == ClassType.EVALUATOR:
                 t_cls_name = EvaluatorConfig.type
             else:
@@ -159,14 +167,23 @@ class ClassFactory(object):
     @classmethod
     def get_instance(cls, type_name, params=None, **kwargs):
         """Get instance."""
-        try:
-            _params = deepcopy(params)
-            if not _params:
-                return
-            t_cls_name = _params.pop('type')
-            if kwargs:
-                _params.update(kwargs)
-            t_cls = cls.get_cls(type_name, t_cls_name)
+        _params = deepcopy(params)
+        if not _params:
+            return
+        t_cls_name = _params.pop('type')
+        if kwargs:
+            _params.update(kwargs)
+        t_cls = cls.get_cls(type_name, t_cls_name)
+        if type_name != ClassType.NETWORK:
             return t_cls(**_params) if _params else t_cls()
-        except Exception as ex:
-            raise Exception("Can't get instance for params:{}, ex={}".format(params, ex))
+        # remove extra params
+        params_sig = sig(t_cls.__init__).parameters
+        for k, v in params_sig.items():
+            if '**' in str(v) or '*' in str(v):
+                return t_cls(**_params) if _params else t_cls()
+        extra_param = {k: v for k, v in _params.items() if k not in params_sig}
+        _params = {k: v for k, v in _params.items() if k not in extra_param}
+        instance = t_cls(**_params) if _params else t_cls()
+        for k, v in extra_param.items():
+            setattr(instance, k, v)
+        return instance

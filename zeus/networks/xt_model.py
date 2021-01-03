@@ -13,13 +13,11 @@ import tensorflow as tf
 from tensorflow.python.keras.losses import MSE
 
 from zeus.common import ClassFactory, ClassType
-from zeus.trainer.modules.conf.loss import LossConfig
-from zeus.trainer.modules.conf.optim import OptimConfig
 from zeus.modules.module import Module
 from zeus.modules.operators.ops import Relu, Linear, Conv2d, View, Lambda
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class DqnMlpNet(Module):
     """Create DQN Mlp net with FineGrainedSpace."""
 
@@ -35,14 +33,14 @@ class DqnMlpNet(Module):
         self.fc2 = Linear(hidden_size, action_dim)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class DqnCnnNet(Module):
     """Create DQN Cnn net with FineGrainedSpace."""
 
     def __init__(self, **descript):
         """Create layers."""
         super().__init__()
-        state_dim = descript.get("state_dim")
+        # state_dim = descript.get("state_dim")
         action_dim = descript.get("action_dim")
 
         self.lambda1 = Lambda(lambda x: tf.cast(x, dtype='float32') / 255.)

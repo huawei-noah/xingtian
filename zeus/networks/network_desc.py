@@ -24,10 +24,7 @@ class NetworkDesc(object):
 
     def to_model(self):
         """Transform a NetworkDesc to a special model."""
-        if 'modules' not in self._desc:
-            logging.debug("network=%s does not have key modules. desc={}".format(self._desc))
-            return None
-        logging.debug("Start to Create a Fine Grained Network.")
+        logging.debug("Start to Create a Network.")
         model = Module.from_desc(self._desc)
         if not model:
             raise Exception("Failed to create model, model desc={}".format(self._desc))

@@ -18,7 +18,7 @@ from zeus.modules.operators import AggregateCell, ContextualCell_v1
 from zeus.modules.operators import ops
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class InvertedConv(Module):
     """Create InvertedConv SearchSpace."""
 
@@ -53,7 +53,7 @@ class InvertedConv(Module):
         self.models = Sequential(*conv)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class InvertedResidual(Module):
     """Create InvertedResidual SearchSpace."""
 
@@ -115,7 +115,7 @@ class MergeCell(Module):
         return self.agg(x1, x2)
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class MicroDecoder_Upsample(Module):
     """Call torch.Upsample."""
 

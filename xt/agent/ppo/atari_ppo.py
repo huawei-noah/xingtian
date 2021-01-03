@@ -40,18 +40,10 @@ class AtariPpo(PPO):
         self.next_log_p = None
 
     def handle_env_feedback(self, next_raw_state, reward, done, info, use_explore):
-        self.next_state = next_raw_state
-        predict_val = self.alg.predict(self.next_state)
-
-        self.next_action = predict_val[0][0]
-        self.next_log_p = predict_val[1][0]
-        self.next_value = predict_val[2][0]
-
         info.update({'eval_reward': reward})
 
         self.transition_data.update({
             "reward": np.sign(reward) if use_explore else reward,
-            "next_value": self.next_value,
             "done": done,
             "info": info
         })

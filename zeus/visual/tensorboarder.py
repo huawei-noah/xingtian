@@ -26,11 +26,9 @@ Get vision by tensorboard.
         3. if multi-scaler, you NEED re-run step-1 above!!!  bugs
 """
 import os
-import subprocess
 from datetime import datetime
 from time import sleep
 import shutil
-
 from absl import logging
 from tensorboardX import SummaryWriter
 

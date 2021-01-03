@@ -15,7 +15,7 @@ from zeus.modules.module import Module
 from zeus.common import ClassType, ClassFactory
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class AutoLaneHead(Module):
     """CurveLaneHead."""
 

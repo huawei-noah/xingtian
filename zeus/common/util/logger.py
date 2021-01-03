@@ -252,6 +252,7 @@ class StatsRecorder(threading.Thread):
         self.bm_board = bm_board
         self._data = dict(train_count=np.nan, step=np.nan, elapsed_time=0)
         self._last_show_step = -9999
+        self._name = name
         self.show_interval = show_interval
 
         # stats from explorer
@@ -268,6 +269,9 @@ class StatsRecorder(threading.Thread):
         self.local_data_writer = LocalDataWriter(
             os.path.join(self.workspace, "benchmark")
         )
+        self.bm_record_key = ("train_reward",
+                              "eval_episode_reward", "eval_step_reward",
+                              "custom_criteria", "battle_won")
         self.local_data_writer.add_new_train_event(self.bm_args)
 
     def update(self, **kwargs):
@@ -304,6 +308,12 @@ class StatsRecorder(threading.Thread):
         for _key in BOARD_GROUP_MAP.keys():
             try:
                 g_key = self.add_board_prefix(_key)
+                if not self._data[_key]:
+                    continue
+
+                if np.nan is self._data[_key]:
+                    continue
+
                 record_list.append((g_key, self._data[_key], self._data["step"]))
             except KeyError:
                 continue
@@ -345,8 +355,8 @@ class StatsRecorder(threading.Thread):
         _step = _info["step"]
         _elapsed_time = _info["elapsed_time"]
 
-        _str = "Train_count:{:>10} | Steps:{:>10} | Elapsed time: {}\n".format(
-            _train_count, _step, time_to_str(_elapsed_time)
+        _str = "Task: {:<10} | Train_count:{:>10} | Steps:{:>10} | Elapsed time: {}\n".format(
+            self._name, _train_count, _step, time_to_str(_elapsed_time)
         )
         _show_items = 0
         skip_items = ("train_count", "step", "elapsed_time")
@@ -362,47 +372,50 @@ class StatsRecorder(threading.Thread):
 
     def run(self):
         """Overwrite threading.Thread.run() function with True."""
-        bm_record_key = ("train_reward", "eval_reward", "custom_criteria", "battle_won")
         while True:
             _stats = self.msg_deliver.recv()
-            if _stats.get("ctr_info"):  # msg from explore & broker
-                if _stats.get("ctr_info").get("cmd") == "stats_msg":
-                    logging.debug("recv explore status: {}.".format(_stats["data"]))
-                    self.record_explore_status(_stats["data"])
-            elif _stats.get("is_bm"):  # msg from benchmark
-                # write benchmark result into local file
-                self.local_data_writer.insert_records(_stats["data"])
-                bm_data2board = list()
-                from zeus.common.util.printer import print_immediately
-                print_immediately(_stats)
-                for item in _stats["data"]:
-                    for k, val in item.items():
-                        if k not in bm_record_key:
-                            continue
-                        to_str = "eval_won_rate" if k == "battle_won" else k
-                        val = ("/".join(["benchmark", to_str]),
-                               item[k], item["sample_step"])
-                        bm_data2board.append(val)
-                logging.debug("record bm stats: {}".format(bm_data2board))
-                if self.bm_board and bm_data2board:
-                    self.bm_board.insert_records(bm_data2board)
+            self.process_stats(_stats)
 
-            else:  # msg from learner as default
-                logging.debug("to update _stats: {}".format(_stats))
-                self.update(**_stats)
+    def process_stats(self, stats):
+        """Process a stats received."""
+        if stats.get("ctr_info"):  # msg from explore & broker
+            if stats.get("ctr_info").get("cmd") == "stats_msg{}".format(self.name):
+                # logging.debug("recv explore status: {}.".format(stats["data"]))
+                self.record_explore_status(stats["data"])
+        elif stats.get("is_bm"):  # msg from benchmark
+            # write benchmark result into local file
+            self.local_data_writer.insert_records(stats["data"])
+            bm_data2board = list()
+            from zeus.common.util.printer import print_immediately
+            print_immediately(stats)
+            for item in stats["data"]:
+                for k, val in item.items():
+                    if k not in self.bm_record_key:
+                        continue
+                    to_str = "eval_won_rate" if k == "battle_won" else k
+                    val = ("/".join(["benchmark", to_str]),
+                           item[k], item["sample_step"])
+                    bm_data2board.append(val)
+            logging.debug("record bm stats: {}".format(bm_data2board))
+            if self.bm_board and bm_data2board:
+                self.bm_board.insert_records(bm_data2board)
 
-            if not self.could_show_stats():
-                continue
+        else:  # msg from learner as default
+            # logging.debug("to update stats: {}".format(stats))
+            self.update(**stats)
 
-            self.show_recent_stats()
+        if not self.could_show_stats():
+            return
 
-            # write into tensorboard
-            if self.bm_board:
-                records = self.assemble_records()
-                # fetch benchmark information
-                logging.debug("records: {} insert tensorboard".format(records))
-                if records:
-                    self.bm_board.insert_records(records)
+        self.show_recent_stats()
+
+        # write into tensorboard
+        if self.bm_board:
+            records = self.assemble_records()
+            # fetch benchmark information
+            logging.debug("records: {} insert tensorboard".format(records))
+            if records:
+                self.bm_board.insert_records(records)
 
     def __del__(self):
         """Delete."""

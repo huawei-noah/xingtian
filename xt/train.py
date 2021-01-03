@@ -25,6 +25,7 @@ import sys
 import time
 from subprocess import Popen
 import pprint
+import copy
 
 from absl import logging
 import yaml
@@ -34,46 +35,92 @@ from xt.evaluate import setup_evaluate_adapter
 from xt.framework.broker_launcher import launch_broker
 from xt.framework.learner import setup_learner, patch_alg_within_config
 from xt.framework.explorer import setup_explorer
-from zeus.common.util.common import get_config_file
+from zeus.common.util.logger import StatsRecorder, VERBOSITY_MAP
 from zeus.common.util.get_xt_config import parse_xt_multi_case_paras, \
-    check_if_patch_local_node
+    check_if_patch_local_node, get_pbt_set
+
 
 TRAIN_PROCESS_LIST = list()
 
 
 def _makeup_learner(config_info, data_url, verbosity):
     """Make up a learner instance and build the relation with broker."""
-    config_info = patch_alg_within_config(config_info.copy())
+    config_info = patch_alg_within_config(config_info.copy(), node_type="node_config")
 
     _exp_params = pprint.pformat(config_info, indent=0, width=1,)
     logging.info("init learner with:\n{}\n".format(_exp_params))
 
-    broker_master = launch_broker(config_info, verbosity=verbosity)
-    eval_adapter = setup_evaluate_adapter(config_info, broker_master, verbosity)
+    controller = launch_broker(config_info, verbosity=verbosity)
+    eval_adapter = setup_evaluate_adapter(config_info, controller, verbosity)
 
     # fixme: split the relation between learner and tester
-    learner = setup_learner(config_info, eval_adapter, data_url)
+    _use_pbt, pbt_size, env_num, _pbt_config = get_pbt_set(config_info)
 
-    learner.send_predict = broker_master.register("predict")
-    learner.send_train = broker_master.register("train")
-    learner.stats_deliver = broker_master.register("stats_msg")
-    learner.send_broker = broker_master.recv_local_q
-    learner.start()
+    if _use_pbt:
+        metric_store = controller.register("pbt_metric", "store")
+        weights_store = controller.register("pbt_weights", "store")
+    else:
+        metric_store, weights_store = None, None
 
-    broker_master.main_task = learner
+    for _learner_id in range(pbt_size):
+        learner = setup_learner(config_info, eval_adapter, _learner_id, data_url)
 
-    env_num = config_info.get("env_num")
-    for i in range(env_num):
-        setup_explorer(broker_master, config_info, i)
-    return broker_master
+        controller.register("predict{}".format(learner.name), "send", learner.send_predict)
+        learner.send_train = controller.register("train{}".format(learner.name), "send")
+        learner.stats_deliver = controller.register("stats_msg{}".format(learner.name), "send")
+        learner.send_broker = controller.register("recv{}".format(learner.name), "recv")
+        controller.register("recv_predict{}".format(learner.name), "recv", learner.send_broker_predict)
+
+        # update the learner <--relationship--> explorer ids
+        eid_start = _learner_id*env_num
+        learner.explorer_ids = list(range(eid_start, eid_start+env_num)) if _use_pbt else None
+
+        # add this learner into population.
+        if _use_pbt:
+            learner.add_to_pbt(_pbt_config, metric_store, weights_store)
+
+        setup_broker_stats(learner, controller)
+        controller.add_task(learner)
+        time.sleep(0.01)
+
+    # start learner, after the data within broker stabilization.
+    controller.start()
+    time.sleep(0.01)
+
+    for _learner in controller.tasks:
+        _learner.start()
+
+    for _index, _learner in enumerate(controller.tasks):
+        config_of_learner = copy.deepcopy(config_info)
+        config_of_learner.update({"learner_postfix": _learner.name})
+        # unset summary within actor
+        config_of_learner["model_para"]["actor"]["summary"] = False
+
+        for env_index_per_pbt in range(env_num):
+            # [0, 1, env_num-1] , [env_num, env_num+1, env_num*2-1], ...,
+            # [env_num*(tasks_num-1), ..., env_num*tasks_num-1]
+            env_id = _index * env_num + env_index_per_pbt
+            setup_explorer(_learner.send_broker, config_of_learner, env_id)
+
+        time.sleep(0.01)
+    return controller
 
 
-def start_train(config_file, train_task,
+def setup_broker_stats(task_stub, to_broker):
+    """Setup stats for each task."""
+    stats_obj = StatsRecorder(
+        msg_deliver=task_stub.stats_deliver,
+        bm_args=task_stub.bm_args,
+        workspace=task_stub.workspace,
+        bm_board=task_stub.bm_board,
+        name=task_stub.name
+    )
+    to_broker.stats.add_stats_recorder(task_stub.name, stats_obj)
+
+
+def start_train(config_info, train_task,
                 data_url=None, try_times=5, verbosity="info"):
     """Start training."""
-    with open(config_file) as f:
-        config_info = yaml.safe_load(f)
-
     config_info = check_if_patch_local_node(config_info, train_task)
 
     for _ in range(try_times):
@@ -99,13 +146,18 @@ def handle_multi_case(sig, frame):
     os._exit(0)
 
 
-def main(config_file, train_task, s3_path=None, verbosity="info"):
-    """Do train task with single case."""
-    broker_master = start_train(config_file, train_task,
-                                data_url=s3_path, verbosity=verbosity)
+def train(config_info, train_task, s3_path, verbosity="info"):
+    if verbosity in VERBOSITY_MAP.keys():
+        logging.set_verbosity(VERBOSITY_MAP[verbosity])
+        pass
+    else:
+        logging.warning("un-known logging level-{}".format(verbosity))
+
+    controller = start_train(config_info, train_task,
+                             data_url=s3_path, verbosity=verbosity)
     loop_is_end = False
     try:
-        broker_master.main_loop()
+        controller.tasks_loop()
         loop_is_end = True
     except (KeyboardInterrupt, EOFError) as ex:
         logging.warning("Get a KeyboardInterrupt, Stop early.")
@@ -114,15 +166,24 @@ def main(config_file, train_task, s3_path=None, verbosity="info"):
         logging.warning("Get a Exception, Stop early.")
 
     # handle close signal, with cleaning works.
-    broker_master.main_task.train_worker.logger.save_to_json()
-    broker_master.stop()
+    for _task in controller.tasks:
+        _task.train_worker.logger.save_to_json()
+    controller.stop()
 
-    # fixme: make close harmonious between broker master & slave
+    # fixme: make close harmonious between controller & broker
     time.sleep(2)
     if loop_is_end:
         logging.info("Finished train job normally.")
 
     os._exit(0)
+
+
+def main(config_file, train_task, s3_path=None, verbosity="info"):
+    """Do train task with single case."""
+    with open(config_file) as f:
+        config_info = yaml.safe_load(f)
+
+    train(config_info, train_task, s3_path, verbosity)
 
 
 # train with multi case
@@ -181,7 +242,3 @@ def launch_train_with_shell(abs_config_file, s3_path=None, stdout2file="./xt.log
     )
     time.sleep(1)
     return process_instance
-
-
-if __name__ == "__main__":
-    main(get_config_file())

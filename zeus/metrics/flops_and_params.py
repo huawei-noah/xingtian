@@ -8,7 +8,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # MIT License for more details.
 
-"""PyTorch model counter of FLOPS and parameters."""
+"""Model counter of FLOPS and parameters."""
 from copy import deepcopy
 import zeus
 
@@ -75,7 +75,8 @@ def calc_model_flops_params(model, input, custom_hooks=None, verbose=False):
             flops = tf.profiler.profile(graph, cmd='op', options=opts).total_float_ops
             opts = tf.profiler.ProfileOptionBuilder.trainable_variables_parameter()
             params = tf.profiler.profile(graph, cmd='op', options=opts).total_parameters
+            flops *= 0.5
     elif zeus.is_ms_backend():
         # TODO
         flops, params = 0, 0
-    return flops * 0.5, params
+    return flops, params

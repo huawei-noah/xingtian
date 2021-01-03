@@ -9,8 +9,10 @@
 # MIT License for more details.
 
 """Metric of classifier task."""
+from functools import partial
 from zeus.metrics.pytorch.metrics import MetricBase
 from zeus.common import ClassFactory, ClassType
+import sklearn.metrics as me
 
 
 def accuracy(output, target, top_k=(1,)):
@@ -26,7 +28,8 @@ def accuracy(output, target, top_k=(1,)):
     :rtype: list
 
     """
-    max_k = max(top_k)
+    labels_count = output.shape[1]
+    max_k = labels_count if max(top_k) > labels_count else max(top_k)
     batch_size = target.size(0)
     _, pred = output.topk(max_k, 1, True, True)
     pred = pred.t()
@@ -44,7 +47,7 @@ class Accuracy(MetricBase):
 
     __metric_name__ = 'accuracy'
 
-    def __init__(self, topk=(1,)):
+    def __init__(self, topk=(1, 5)):
         """Init Accuracy metric."""
         self.topk = topk
         self.sum = [0.] * len(topk)
@@ -81,3 +84,36 @@ class Accuracy(MetricBase):
         perf_dict[self.name] = self.pfm[0]
         perf_dict.update({'{}_top{}'.format(self.name, self.topk[idx]): value for idx, value in enumerate(self.pfm)})
         return perf_dict
+
+
+@ClassFactory.register(ClassType.METRIC)
+class SklearnMetrics(MetricBase):
+    """Wrapper class for Sklearn Metrics."""
+
+    def __init__(self, name, **kwargs):
+        super().__init__()
+        self.__metric_name__ = name
+        self.metric_func = getattr(me, name)
+        if kwargs:
+            self.metric_func = partial(self.metric_func, kwargs)
+
+    def __call__(self, output, target, *args, **kwargs):
+        """Perform top k accuracy.
+
+        :param output: output of classification network
+        :param target: ground truth from dataset
+        :return: pfm
+        """
+        _, y_pred = output.topk(1, 1, True, True)
+        y_pred = y_pred.t().detach().cpu().numpy()[0]
+        y_true = target.detach().cpu().numpy()
+        self.pfm = self.metric_func(y_true, y_pred)
+        return self.pfm
+
+    def reset(self):
+        """Reset states for new evaluation after each epoch."""
+        pass
+
+    def summary(self):
+        """Summary all cached records, here is the last pfm record."""
+        return self.pfm

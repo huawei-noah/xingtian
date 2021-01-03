@@ -11,9 +11,11 @@ save_interval:
   DQN: 100
 
 config_dir: 'examples'
+#single_case: "examples/pendulum_ppo.yaml"
 #single_case: "examples/cartpole_ppo.yaml"
 #single_case: "examples/cartpole_dqn.yaml"
 #single_case: "examples/pong_ppo.yaml"
+#single_case: "examples/pong_dqn.yaml"
 #single_case: "examples/qbert_impala.yaml"
 #single_case: "examples/breakout_impala.yaml"
 #single_case: "examples/breakout_ppo.yaml"

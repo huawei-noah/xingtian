@@ -17,17 +17,27 @@ def register_networks(backend):
     from .adelaide import AdelaideFastNAS
     from .erdb_esr import ESRN
     from .mobilenet import MobileNetV3Tiny, MobileNetV2Tiny
+    from .mobilenetv3 import MobileNetV3Small, MobileNetV3Large
+    from .sgas_network import SGASNetwork
     from .necks import FPN
+    from .bert import BertClassifier
     from . import resnet
     from . import quant
     from . import mtm_sr
     from . import super_network
     from . import resnet_det
     from . import resnet_general
+    from . import resnext_det
     from . import xt_model
+    from . import text_cnn
+    from . import faster_rcnn
     if backend == "pytorch":
+        from . import spnet_backbone
+        from . import faster_backbone
         from . import pytorch
     elif backend == "tensorflow":
+        from . import spnet_backbone
+        from . import faster_backbone
         from . import tensorflow
     elif backend == "mindspore":
         from . import mindspore

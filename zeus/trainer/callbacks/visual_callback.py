@@ -10,6 +10,7 @@
 
 """Visual callback definition."""
 import os
+import logging
 import zeus
 import numpy as np
 from copy import deepcopy
@@ -40,7 +41,6 @@ class VisualCallBack(Callback):
         """Initialize Visual callback."""
         super(VisualCallBack, self).__init__()
         self.priority = 290
-        self.recorded_graph = False
         self._archive_root = TaskOps().local_visual_path
         self._fix_path = None
         self.summary = None
@@ -57,12 +57,38 @@ class VisualCallBack(Callback):
         self._fix_path = "_".join([self.trainer.step_name, str(self.trainer.worker_id)])
         self.summary = SummaryBoard(self._archive_root, self._fix_path)
 
+        # add graph only once.
         if zeus.is_tf_backend():
             import tensorflow as tf
             datasets = self.trainer.valid_input_fn()
             data_iter = tf.compat.v1.data.make_one_shot_iterator(datasets)
             input_data, _ = data_iter.get_next()
             self.input = input_data[:1]
+
+            graph = self.trainer.graph
+            _graph_name_list = [n.name for n in graph.as_graph_def().node]
+            if len(_graph_name_list) < 2:
+                graph = _fetch_tf_graph(self.trainer.model, self.input)
+
+            self.summary.add_graph(graph=graph, backend="tf")
+        elif zeus.is_torch_backend():
+            model = self.trainer.model
+            data_iter = iter(self.trainer.train_loader)
+            input_batch, _ = data_iter.next()
+
+            input_data = input_batch[:1]
+            if self.trainer.use_cuda and not self.trainer.config.is_detection_trainer:
+                input_data = input_data.cuda()
+            try:
+                self.summary.add_graph(model=model, feed_data=input_data,
+                                       backend="torch")
+            except BaseException as err:
+                logging.warning("Dump PyTorch model failed! with: \n{}".format(err))
+
+        elif zeus.is_ms_backend():
+            logging.debug("Don't support mindspore model dump yet.")
+        else:
+            logging.warning("non-known backend.")
 
     def after_epoch(self, epoch, logs=None):
         """Collect data after epoch, and 'after_epoch' data could contains 'after_valid'."""
@@ -72,20 +98,6 @@ class VisualCallBack(Callback):
         # update info
         info_records = [("/".join(["info", k]), self._info[k]) for k in self._need_keys]
         self.summary.insert_epoch_logs(info_records, epoch)
-
-        # add graph only once.
-        if self._need_record_graph():
-            # record graph
-            if zeus.is_tf_backend():
-                self.model = self.trainer.model
-                import tensorflow as tf
-                graph = self.trainer.graph
-                _graph_name_list = [n.name for n in graph.as_graph_def().node]
-                if len(_graph_name_list) < 2:
-                    graph = _fetch_tf_graph(self.model, self.input)
-
-                self.summary.add_graph(graph=graph, backend="tf")
-                self.recorded_graph = True
 
     def after_valid(self, logs=None):
         """Check records after valid."""
@@ -98,25 +110,9 @@ class VisualCallBack(Callback):
         for _k in self._need_keys:
             self._info.update({_k: logs.get(_k, 0.)})
 
-        # add graph only once.
-        if self._need_record_graph():
-            if zeus.is_torch_backend():
-                model = self.trainer.model
-                input_data, target = logs["train_batch"]
-                self.summary.add_graph(model=model, feed_data=input_data,
-                                       backend="torch")
-
-            elif zeus.is_ms_backend():
-                pass
-            else:
-                print("non-known backend.")
-
-            self.recorded_graph = True
-
     def _need_record_graph(self):
-        """Record graph within 'fullytrain' stage, with first batch in first epoch."""
-        # return (not self.recorded_graph)
-        return (not self.recorded_graph) and "fullytrain" in self._fix_path
+        """Record graph within 'train' stage."""
+        return "train" in self._fix_path
 
     def after_train(self, logs=None):
         """Shutdown summary after train."""

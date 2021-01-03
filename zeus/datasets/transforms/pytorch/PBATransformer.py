@@ -25,7 +25,7 @@ class PBATransformer(object):
 
     transforms = dict()
 
-    def __init__(self, para_array, operation_names):
+    def __init__(self, para_array, operation_names, **kwargs):
         """Construct the PBATransformer class."""
         self.para_array = para_array
         self.operation_names = operation_names

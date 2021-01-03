@@ -2,16 +2,21 @@
 from copy import deepcopy
 from itertools import product
 
+import os
+import tracemalloc
 import numpy as np
 import yaml
 from absl import logging
 
 from zeus.common.util.default_xt import XtBenchmarkConf as bm_conf
+from zeus.common.util.default_xt import DebugConf
+from zeus.common.util.profile_stats import show_memory_stats
+
 PATCH_NODE_SET = ("node_config", "test_node_config")
 LOCAL_NODE_CONFIG = ("127.0.0.1", "dummy_user", "dummy_password")
 OPEN_TASKS_SET = ("train", "evaluate", "train_with_evaluate")  # "benchmark"
 PATCH_NODE_MAP = {"train": "node_config",
-                  "evaluate": ["node_config", "test_node_config"],
+                  "evaluate": ["test_node_config", ],
                   "train_with_evaluate": ["node_config", "test_node_config"]}
 
 
@@ -169,3 +174,40 @@ def check_if_patch_local_node(config_obj, to_patch_task):
             logging.debug("patch '{}' with: {}".format(_key, config_obj[_key]))
 
     return config_obj
+
+
+def get_buf_size():
+    """Return the config set of buffer size."""
+    pass
+
+
+def init_main_broker_debug_kwargs():
+    """Collect debug config for main broker."""
+    kwargs = dict(interval=99999)
+    if DebugConf.memory_summary:
+        kwargs = dict(interval=DebugConf.interval_s,
+                      func=show_memory_stats,
+                      pid=os.getpid(), verbose=False)
+
+    if DebugConf.trace:
+        snapshot1 = tracemalloc.take_snapshot()
+        kwargs = dict(interval=DebugConf.interval_s,
+                      func=show_memory_stats,
+                      pid=os.getpid(), verbose=True,
+                      snapshot_before=snapshot1, top_count=DebugConf.top_k)
+    return kwargs
+
+
+def get_pbt_set(config_info):
+    """Get pbt set."""
+    env_num = config_info.get("env_num")
+    _use_pbt = config_info.get("use_pbt", False)
+    _pbt_config = config_info.get("pbt_config", dict())
+    _size = _pbt_config.get("population_size", 0)
+
+    if _use_pbt and _size < 2:
+        raise KeyError("use pbt must assign population_size >= 2.")
+
+    pbt_size = _size if config_info.get("use_pbt") else 1
+
+    return _use_pbt, pbt_size, env_num, _pbt_config

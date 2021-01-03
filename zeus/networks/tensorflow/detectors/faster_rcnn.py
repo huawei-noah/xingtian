@@ -27,7 +27,7 @@ from zeus.networks.tensorflow.utils.image_resizer import image_resizer_util
 from zeus.networks.tensorflow.utils.post_processing import post_processing_util
 
 
-@ClassFactory.register(ClassType.SEARCH_SPACE)
+@ClassFactory.register(ClassType.NETWORK)
 class FasterRCNN(object):
     """Faster RCNN."""
 

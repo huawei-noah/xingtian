@@ -30,10 +30,15 @@ def register_datasets(backend):
     """Import and register datasets automatically."""
     if backend == "pytorch":
         from . import pytorch
+        from .common.auto_lane_datasets import AutoLaneConfig
     elif backend == "tensorflow":
         from . import tensorflow
+        if zeus.is_gpu_device():
+            from .common.auto_lane_datasets import AutoLaneConfig
     elif backend == "mindspore":
         import mindspore.dataset
         from . import mindspore
     from . import common
-    from . import transforms
+
+    from .transforms import register_transforms
+    register_transforms(backend)
