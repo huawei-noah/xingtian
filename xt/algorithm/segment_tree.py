@@ -1,8 +1,5 @@
 """
 Build a Segment Tree data structure.
-
-@Author: Jack Qian, chenchen
-@license : Copyright(C), Huawei
 """
 import operator
 
