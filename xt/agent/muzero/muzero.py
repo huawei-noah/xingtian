@@ -100,3 +100,32 @@ class Muzero(Agent):
                 break
 
         return ret_model_name
+
+    def run_one_episode(self, use_explore, need_collect):
+        """
+        Do interaction with max steps in each episode.
+
+        :param use_explore:
+        :param need_collect: if collect the total transition of each episode.
+        :return:
+        """
+        # clear the old trajectory data
+        self.clear_trajectory()
+        state = self.env.get_init_state(self.id)
+
+        self._stats.reset()
+
+        for _ in range(self.max_step):
+            self.clear_transition()
+            state = self.do_one_interaction(state, use_explore)
+
+            if need_collect:
+                self.add_to_trajectory(self.transition_data)
+
+            if self.transition_data["done"]:
+                if not self.keep_seq_len:
+                    break
+                self.env.reset()
+                state = self.env.get_init_state()
+
+        return self.get_trajectory()
