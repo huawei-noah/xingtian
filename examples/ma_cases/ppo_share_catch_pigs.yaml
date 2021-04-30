@@ -1,0 +1,39 @@
+alg_para:
+  alg_name: PPO
+
+env_para:
+  env_name: MaEnvCatchPigs
+  env_info:
+    size: 7
+    vision: False
+
+agent_para:
+  agent_name: PPO
+  agent_num : 2
+  agent_config:
+    max_steps: 1000
+    complete_step: 3000000
+
+model_para:
+  actor:
+    model_name: PpoCnn
+    state_dim: [15, 15, 3]
+    action_dim: 4
+    input_dtype: float32
+    model_config:
+      BATCH_SIZE: 200
+      CRITIC_LOSS_COEF: 1.0
+      ENTROPY_LOSS: 0.003
+      LOSS_CLIPPING: 0.1
+      LR: 0.0003
+      NUM_SGD_ITER: 4
+      hidden_sizes: [256]
+
+env_num: 10
+node_config: [["127.0.0.1", "username", "passwd"]]
+#test_node_config: [["127.0.0.1", "username", "passwd"]]
+
+benchmark:
+  id: xt_catch_pigs
+  # archive_root: ../xt_archive  # default: ~/xt_archive
+  log_interval_to_train: 5
