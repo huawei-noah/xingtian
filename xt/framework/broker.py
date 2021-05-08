@@ -494,8 +494,6 @@ class Broker(object):
         )
 
         p = Process(target=explorer.start)
-
-        p.daemon = True
         p.start()
 
         cpu_count = psutil.cpu_count()
@@ -518,8 +516,6 @@ class Broker(object):
             send_broker=self.explorer_share_qs["EVAL0"],
         )
         p = Process(target=evaluator.start)
-
-        p.daemon = True
         p.start()
 
         speedup = config_info.get("speedup", False)
