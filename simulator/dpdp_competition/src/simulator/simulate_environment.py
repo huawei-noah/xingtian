@@ -77,6 +77,9 @@ class SimulateEnvironment(object):
 
         # 目标函数值, objective
         self.total_score = -1
+        
+        # 硬盘写入延时, writing time for interactive files
+        self.write_lag_time = 3
 
     # 初始化历史记录
     def __ini_history(self):
@@ -227,9 +230,9 @@ class SimulateEnvironment(object):
 
         # 3. parse the output json of the algorithm
         if Configs.ALGORITHM_SUCCESS_FLAG in message:
-            if (time_start_algorithm < os.stat(Configs.algorithm_output_destination_path).st_mtime < time.time()
+            if (time_start_algorithm < os.stat(Configs.algorithm_output_destination_path).st_mtime < time.time() + self.write_lag_time
                     and time_start_algorithm < os.stat(
-                        Configs.algorithm_output_planned_route_path).st_mtime < time.time()):
+                        Configs.algorithm_output_planned_route_path).st_mtime < time.time() + self.write_lag_time):
                 vehicle_id_to_destination, vehicle_id_to_planned_route = get_output_of_algorithm(self.id_to_order_item)
                 dispatch_result = DispatchResult(vehicle_id_to_destination, vehicle_id_to_planned_route)
                 return used_seconds, dispatch_result
