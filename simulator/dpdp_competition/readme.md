@@ -10,13 +10,13 @@ dpdp_competition
 	│  main_algorithm.py  算法的主程序
 	│  readme.md  文档说明
 	│  
-	├─algorithm  存放算法代码的文件夹
-	│   │  algorithm_demo.py  算法示例代码
-    │   │  
-    │   └─data_interaction  算法与模拟器交互数据的文件夹 
+	│─algorithm  存放算法代码的文件夹
+	│  │  algorithm_demo.py  算法示例代码
+	│  │  
+	│  └─data_interaction  算法与模拟器交互数据的文件夹 
 	│      
 	├─benchmark  测试集
-	|
+	│
 	└─src 存放模拟器代码的文件夹 
 		├─common  常用类
 		│      dispatch_result.py
@@ -32,19 +32,19 @@ dpdp_competition
 		│      configs.py
 		│      
 		├─simulator  模拟器
-        │      history.py
-        │      simulate_api.py
-        │      simulate_environment.py
-        │      vehicle_simulator.py
+		│      history.py
+		│      simulate_api.py
+		│      simulate_environment.py
+		│      vehicle_simulator.py
 		│      
 		└─utils  常用工具
-               checker.py
-               evaluator.py
-               input_utils.py
-               json_tools.py
-               logging_engine.py
-               log_utils.py
-               tools.py
+		       checker.py
+		       evaluator.py
+		       input_utils.py
+		       json_tools.py
+		       logging_engine.py
+		       log_utils.py
+		       tools.py
 ```
 
 
@@ -80,9 +80,9 @@ Note: Pathes of folders and files mentioned above are illustrated in the Introdu
 
 启动模拟器后，模拟器首先读取选定测试例，测试例的选择可在Configs.py中修改，接着按照固定时间间隔10min来进行模拟，直到完成测试例中的所有订单。
 
-每轮次模拟中，模拟器把算法需要的数据通过JSON文件的形式输出至algorithm/data_interaction文件夹中，接着调用算法主程序（以main_algorithm作为前缀的文件，例如main_algorithm.py, main_algorithm.java等）。当算法成功启动后，会读取JSON文件、派单、把派单结果通过json文件的形式输出至algorithm/data_interaction文件夹中，并且输出"SUCCESS"字符串至控制台，作为模拟器判断算法是否成功返回的标识。如果成功获取到算法成功返回的标识，模拟器会读取算法输出的JSON文件，并进行校验，通过校验后，继续进行模拟仿真。
+每轮次模拟中，模拟器把算法需要的数据通过JSON文件的形式输出至algorithm/data_interaction文件夹中，接着调用算法主程序（以main_algorithm作为前缀的文件，例如main_algorithm.py, main_algorithm.java等）。当算法成功启动后，会读取JSON文件、派单、把派单结果通过json文件的形式输出至algorithm/data_interaction文件夹中，并且输出"SUCCESS"字符串至**控制台【非日志】**，作为模拟器判断算法是否成功返回的标识。如果成功获取到算法成功返回的标识，模拟器会读取算法输出的JSON文件，并进行校验，通过校验后，继续进行模拟仿真。
 
-当前算法每次运行时长限定为10分钟，超时模拟器将主动退出。
+**当前算法每次运行时长限定为10分钟，超时模拟器将主动退出。**
 
 注：上面提到的路径和文件名详见Introduction部分的“模拟器的目录结构”
 
