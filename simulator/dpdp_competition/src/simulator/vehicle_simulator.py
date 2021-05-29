@@ -153,7 +153,7 @@ class VehicleSimulator(object):
         return sorted_vehicles
 
     # 解析输出, 加快照
-    def parse_simulation_result(self, id_to_vehicle: dict, from_time: int, to_time: int):
+    def parse_simulation_result(self, id_to_vehicle: dict, to_time: int):
         self.ongoing_item_ids = []
         self.completed_item_ids = []
         self.vehicle_id_to_destination = {}
@@ -162,7 +162,7 @@ class VehicleSimulator(object):
 
         self.get_position_info_of_vehicles(id_to_vehicle, to_time)
         self.get_destination_of_vehicles(id_to_vehicle, to_time)
-        self.get_loading_and_unloading_result_of_vehicles(id_to_vehicle, from_time, to_time)
+        self.get_loading_and_unloading_result_of_vehicles(id_to_vehicle, to_time)
 
     def get_position_info_of_vehicles(self, id_to_vehicle: dict, to_time: int):
         for vehicle_id, vehicle in id_to_vehicle.items():
@@ -175,7 +175,7 @@ class VehicleSimulator(object):
                 if vehicle.leave_time_at_current_factory >= to_time or vehicle.destination is None:
                     cur_factory_id = vehicle.cur_factory_id
                     arrive_time_at_current_factory = vehicle.arrive_time_at_current_factory
-                    leave_time_at_current_factory = vehicle.leave_time_at_current_factory
+                    leave_time_at_current_factory = max(vehicle.leave_time_at_current_factory, to_time)
 
             # in the following node
             if len(cur_factory_id) == 0:
@@ -231,7 +231,7 @@ class VehicleSimulator(object):
                         break
                 self.vehicle_id_to_destination[vehicle_id] = destination
 
-    def get_loading_and_unloading_result_of_vehicles(self, id_to_vehicle: dict, from_time: int, to_time: int):
+    def get_loading_and_unloading_result_of_vehicles(self, id_to_vehicle: dict, to_time: int):
         for vehicle_id, vehicle in id_to_vehicle.items():
             carrying_items = vehicle.carrying_items
 
