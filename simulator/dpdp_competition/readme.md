@@ -225,7 +225,7 @@ Notes： if vehicle v is in the factory f1, the destination is f2, then the rout
 | committed_completion_time | committed completion time of the corresponding order(unit: unix timestamp), 所属订单的承诺送达时间 | int    |
 | load_time                 | loading time of item(unit: second), 该物料的装载时间         | int    |
 | unload_time               | unloading time of item(unit: second), 该物料的卸货时间       | int    |
-| delivery_state            | Item status, 0 means initialization; 1 means the item is generated; 3 means the item has been loaded; 4 means the item is delivered. | int    |
+| delivery_state            | Item status, 0 means initialization; 1 means the item is generated; 2 means the item has been loaded; 3 means the item is delivered. | int    |
 
 
 
