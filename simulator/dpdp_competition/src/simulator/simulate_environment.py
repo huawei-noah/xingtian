@@ -76,7 +76,7 @@ class SimulateEnvironment(object):
         self.history = self.__ini_history()
 
         # 目标函数值, objective
-        self.total_score = -1
+        self.total_score = sys.maxsize
 
     # 初始化历史记录
     def __ini_history(self):
@@ -110,7 +110,7 @@ class SimulateEnvironment(object):
             # 校验, 车辆目的地不能改变
             if not Checker.check_dispatch_result(dispatch_result, self.id_to_vehicle, self.id_to_order):
                 logger.error("Dispatch result is infeasible")
-                sys.exit(-1)
+                return
 
             # 根据派单指令更新车辆
             self.deliver_control_command_to_vehicles(dispatch_result)
