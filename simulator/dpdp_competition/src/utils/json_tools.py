@@ -179,12 +179,19 @@ def get_vehicle_instance_dict(vehicle_infos: list, id_to_order_item: dict, id_to
         if destination is not None:
             destination = __get_destination(destination, id_to_factory, id_to_order_item)
 
+        cur_factory_id = vehicle_info.get("cur_factory_id")
+        arrive_time_at_current_factory = vehicle_info.get("arrive_time_at_current_factory")
+        leave_time_at_current_factory = vehicle_info.get("leave_time_at_current_factory")
+        update_time = vehicle_info.get("update_time")
+
         logger.debug(f"Get vehicle {vehicle_id} instance from json, "
                      f"item id list = {len(carrying_item_id_list)},"
                      f"item list = {len(carrying_items)}")
         if vehicle_id not in id_to_vehicle:
             vehicle = Vehicle(vehicle_id, capacity, gps_id, operation_time, carrying_items)
             vehicle.destination = destination
+            vehicle.set_cur_position_info(cur_factory_id, update_time,
+                                          arrive_time_at_current_factory, leave_time_at_current_factory)
             id_to_vehicle[vehicle_id] = vehicle
     return id_to_vehicle
 
