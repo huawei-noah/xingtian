@@ -21,6 +21,7 @@
 import traceback
 import datetime
 import numpy as np
+import sys
 
 from src.conf.configs import Configs
 from src.simulator.simulate_api import simulate
@@ -52,6 +53,7 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error("Failed to run simulator")
             logger.error(f"Error: {e}, {traceback.format_exc()}")
+            score_list.append(sys.maxsize)
 
         # 删除日志句柄
         remove_file_handler_of_logging(log_file_name)
