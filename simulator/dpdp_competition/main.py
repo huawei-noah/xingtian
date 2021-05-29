@@ -50,6 +50,7 @@ if __name__ == "__main__":
         try:
             score = simulate(Configs.factory_info_file, Configs.route_info_file, instance)
             score_list.append(score)
+            logger.info(f"Score of {instance}: {score}")
         except Exception as e:
             logger.error("Failed to run simulator")
             logger.error(f"Error: {e}, {traceback.format_exc()}")
