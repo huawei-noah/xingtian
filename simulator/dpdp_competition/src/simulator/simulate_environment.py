@@ -138,7 +138,7 @@ class SimulateEnvironment(object):
         # 获取车辆的位置信息和订单状态
         # Get the updated status of vehicles and orders according to the simulator
         self.vehicle_simulator.run(self.id_to_vehicle, self.pre_time)
-        self.vehicle_simulator.parse_simulation_result(self.id_to_vehicle, self.pre_time, self.cur_time)
+        self.vehicle_simulator.parse_simulation_result(self.id_to_vehicle, self.cur_time)
         # 增加历史记录, add history
         self.history.add_history_of_vehicles(self.id_to_vehicle, self.cur_time)
         self.history.add_history_of_order_items(self.id_to_vehicle, self.cur_time)
