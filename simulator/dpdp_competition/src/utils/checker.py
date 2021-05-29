@@ -49,24 +49,9 @@ class Checker(object):
 
             # check destination
             destination_in_result = vehicle_id_to_destination.get(vehicle_id)
-            origin_destination = vehicle.destination
-            if origin_destination is not None:
-                if destination_in_result is None:
-                    logger.error(f"Vehicle {vehicle_id}, returned destination is None, "
-                                 f"however the origin destination is not None.")
-                    return False
-                else:
-                    if origin_destination.id != destination_in_result.id:
-                        logger.error(f"Vehicle {vehicle_id}, returned destination id is {destination_in_result.id}, "
-                                     f"however the origin destination id is {origin_destination.id}.")
-                        return False
-
-                    if origin_destination.arrive_time != destination_in_result.arrive_time:
-                        logger.error(f"Vehicle {vehicle_id}, arrive time of returned destination is "
-                                     f"{destination_in_result.arrive_time}, "
-                                     f"however the arrive time of origin destination is "
-                                     f"{origin_destination.arrive_time}.")
-                        return False
+            if not Checker.__is_returned_destination_valid(destination_in_result, vehicle):
+                logger.error(f"Returned destination of Vehicle {vehicle_id} is not valid")
+                return False
 
             # check routes
             if vehicle_id not in vehicle_id_to_planned_route:
@@ -98,8 +83,38 @@ class Checker(object):
                 if Checker.__contain_duplicate_items(route, copy.deepcopy(vehicle.carrying_items)):
                     return False
 
+                if not Checker.__do_pickup_and_delivery_items_match_the_node(route):
+                    return False
+
         # check order splitting
         if not Checker.__meet_order_splitting_constraint(dispatch_result, id_to_vehicle, id_to_order):
+            return False
+
+        return True
+
+    @staticmethod
+    def __is_returned_destination_valid(returned_destination, vehicle):
+        origin_destination = vehicle.destination
+        if origin_destination is not None:
+            if returned_destination is None:
+                logger.error(f"Vehicle {vehicle.id}, returned destination is None, "
+                             f"however the origin destination is not None.")
+                return False
+            else:
+                if origin_destination.id != returned_destination.id:
+                    logger.error(f"Vehicle {vehicle.id}, returned destination id is {returned_destination.id}, "
+                                 f"however the origin destination id is {origin_destination.id}.")
+                    return False
+
+                if origin_destination.arrive_time != returned_destination.arrive_time:
+                    logger.error(f"Vehicle {vehicle.id}, arrive time of returned destination is "
+                                 f"{returned_destination.arrive_time}, "
+                                 f"however the arrive time of origin destination is "
+                                 f"{origin_destination.arrive_time}.")
+                    return False
+        elif len(vehicle.cur_factory_id) == 0 and returned_destination is None:
+            logger.error(f"Currently, Vehicle {vehicle.id} is not in the factory(cur_factory_id==''), "
+                         f"however, returned destination is also None, we cannot locate the vehicle.")
             return False
 
         return True
@@ -181,6 +196,24 @@ class Checker(object):
                     logger.error(f"Item {item.id}: duplicate item id")
                     return True
         return False
+
+    @staticmethod
+    def __do_pickup_and_delivery_items_match_the_node(route: list):
+        for node in route:
+            factory_id = node.id
+            pickup_items = node.pickup_items
+            for item in pickup_items:
+                if item.pickup_factory_id != factory_id:
+                    logger.error(f"Pickup factory of item {item.id} is {item.pickup_factory_id}, "
+                                 f"however you allocate the vehicle to pickup this item in {factory_id}")
+                    return False
+            delivery_items = node.delivery_items
+            for item in delivery_items:
+                if item.delivery_factory_id != factory_id:
+                    logger.error(f"Delivery factory of item {item.id} is {item.delivery_factory_id}, "
+                                 f"however you allocate the vehicle to delivery this item in {factory_id}")
+                    return False
+        return True
 
     @staticmethod
     def __meet_order_splitting_constraint(dispatch_result, id_to_vehicle: dict, id_to_order: dict):
