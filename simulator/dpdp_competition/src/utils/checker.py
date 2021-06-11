@@ -75,9 +75,8 @@ class Checker(object):
                     logger.error(f"Vehicle {vehicle_id} violates the LIFO constraint")
                     return False
 
-                # # check duplicated node id
-                # if Checker.contain_duplicate_nodes(complete_route):
-                #     return False
+                # check adjacent-duplicated nodes
+                Checker.__contain_duplicated_nodes(vehicle_id, route)
 
                 # check duplicated item id
                 if Checker.__contain_duplicate_items(route, copy.deepcopy(vehicle.carrying_items)):
@@ -164,17 +163,12 @@ class Checker(object):
 
         return carrying_items.is_empty()
 
-    # 检查路径是否有重复的点
+    # 检查相邻的节点是否重复，并警告，鼓励把相邻重复节点进行合并
     @staticmethod
-    def __contain_duplicate_nodes(route):
-        node_id_list = []
-        for node in route:
-            if node.id not in node_id_list:
-                node_id_list.append(node.id)
-            else:
-                logger.info(f"Duplicate node {node.id}")
-                return True
-        return False
+    def __contain_duplicated_nodes(vehicle_id, route):
+        for n in range(len(route) - 1):
+            if route[n].id == route[n + 1].id:
+                logger.warning(f"{vehicle_id} has adjacent-duplicated nodes which are encouraged to be combined in one.")
 
     @staticmethod
     def __contain_duplicate_items(route, carrying_items):
