@@ -126,6 +126,8 @@ def dispatch_orders_to_vehicles(id_to_unallocated_order_item: dict, id_to_vehicl
     # create the output of the algorithm
     for vehicle_id, vehicle in id_to_vehicle.items():
         origin_planned_route = vehicle_id_to_planned_route.get(vehicle_id)
+        # Combine adjacent-duplicated nodes.
+        __combine_duplicated_nodes(origin_planned_route)
 
         destination = None
         planned_route = []
@@ -203,6 +205,15 @@ def __get_delivery_factory_id(items):
             return ""
 
     return factory_id
+
+
+# 合并相邻重复节点 Combine adjacent-duplicated nodes.
+def __combine_duplicated_nodes(nodes):
+    n = 0
+    while n < len(nodes)-1:
+        if nodes[n].id == nodes[n+1].id:
+            nodes[n].pickup_items.extend(nodes.pop(n+1).pickup_items)
+        n += 1
 
 
 """
