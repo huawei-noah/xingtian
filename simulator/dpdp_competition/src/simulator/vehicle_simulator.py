@@ -19,6 +19,7 @@
 # THE SOFTWARE
 
 import datetime
+
 import simpy
 
 from src.conf.configs import Configs
@@ -166,49 +167,26 @@ class VehicleSimulator(object):
 
     def get_position_info_of_vehicles(self, id_to_vehicle: dict, to_time: int):
         for vehicle_id, vehicle in id_to_vehicle.items():
+            if len(vehicle.cur_factory_id) == 0 and vehicle.destination is None:
+                logger.error(f"Vehicle {vehicle_id}, the current position {vehicle.position_info.cur_factory_id}, "
+                             f"the destination is None")
+                continue
+
+            node_list = self.get_node_list_of_vehicle(vehicle)
+
             cur_factory_id = ""
             arrive_time_at_current_factory = 0
             leave_time_at_current_factory = 0
+            for node in node_list:
+                if node.arr_time <= to_time <= node.leave_time:
+                    cur_factory_id = node.id
+                    arrive_time_at_current_factory = node.arr_time
+                    leave_time_at_current_factory = node.leave_time
 
-            # still in current position
-            if len(vehicle.cur_factory_id) > 0:
-                if vehicle.leave_time_at_current_factory >= to_time or vehicle.destination is None:
-                    cur_factory_id = vehicle.cur_factory_id
-                    arrive_time_at_current_factory = vehicle.arrive_time_at_current_factory
-                    leave_time_at_current_factory = max(vehicle.leave_time_at_current_factory, to_time)
-
-            # in the following node
-            if len(cur_factory_id) == 0:
-                if vehicle.destination is None:
-                    logger.error(f"Vehicle {vehicle_id}, the current position {vehicle.position_info.cur_factory_id}, "
-                                 f"the destination is None")
-                    continue
-
-                if vehicle.destination.arrive_time > to_time:
-                    cur_factory_id = ""
-                elif vehicle.destination.leave_time > to_time:
-                    cur_factory_id = vehicle.destination.id
-                    arrive_time_at_current_factory = vehicle.destination.arrive_time
-                    leave_time_at_current_factory = vehicle.destination.leave_time
-                else:
-                    if len(vehicle.planned_route) == 0:
-                        cur_factory_id = vehicle.destination.id
-                        arrive_time_at_current_factory = vehicle.destination.arrive_time
-                        leave_time_at_current_factory = vehicle.destination.leave_time
-                    else:
-                        cur_factory_id = ""
-                        for node in vehicle.planned_route:
-                            if node.arrive_time <= to_time <= node.leave_time:
-                                cur_factory_id = node.id
-                                arrive_time_at_current_factory = node.arrive_time
-                                leave_time_at_current_factory = node.leave_time
-                                break
-
-                        # Considering boundary conditions
-                        if len(cur_factory_id) == 0 and vehicle.planned_route[-1].leave_time < to_time:
-                            cur_factory_id = vehicle.planned_route[-1].id
-                            arrive_time_at_current_factory = vehicle.planned_route[-1].arrive_time
-                            leave_time_at_current_factory = vehicle.planned_route[-1].leave_time
+            if len(cur_factory_id) == 0 and node_list[-1].leave_time < to_time:
+                cur_factory_id = node_list[-1].id
+                arrive_time_at_current_factory = node_list[-1].arr_time
+                leave_time_at_current_factory = max(node_list[-1].leave_time, to_time)
 
             self.vehicle_id_to_cur_position_info[vehicle_id] = {"cur_factory_id": cur_factory_id,
                                                                 "arrive_time_at_current_factory": arrive_time_at_current_factory,
@@ -263,3 +241,30 @@ class VehicleSimulator(object):
         for item in pickup_items:
             carrying_items.push(item)
             ongoing_item_ids.append(item.id)
+
+    @staticmethod
+    def get_node_list_of_vehicle(vehicle):
+        node_list = []
+
+        if len(vehicle.cur_factory_id) > 0:
+            node_list.append(EasyNode(vehicle.cur_factory_id,
+                                      vehicle.arrive_time_at_current_factory,
+                                      vehicle.leave_time_at_current_factory))
+
+        if vehicle.destination is not None:
+            node_list.append(EasyNode(vehicle.destination.id,
+                                      vehicle.destination.arrive_time,
+                                      vehicle.destination.leave_time))
+
+        if len(vehicle.planned_route) > 0:
+            for node in vehicle.planned_route:
+                node_list.append(EasyNode(node.id, node.arrive_time, node.leave_time))
+
+        return node_list
+
+
+class EasyNode(object):
+    def __init__(self, factory_id, arr_time, leave_time):
+        self.id = factory_id
+        self.arr_time = arr_time
+        self.leave_time = leave_time
