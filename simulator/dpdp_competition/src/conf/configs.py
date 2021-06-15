@@ -26,7 +26,7 @@ class Configs(object):
     ALG_RUN_FREQUENCY = 10  # 单位分钟
 
     # 多目标权重之间的系数
-    LAMDA = 600000
+    LAMDA = 10000
 
     # different pallet types of orders
     PALLET_TYPE_LABELS = ["PALLET", "HALF_PALLET", "BOX"]
