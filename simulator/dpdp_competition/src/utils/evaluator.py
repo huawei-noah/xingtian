@@ -33,7 +33,7 @@ class Evaluator(object):
         logger.info(f"Total distance: {total_distance: .3f}")
         total_over_time = Evaluator.calculate_total_over_time(history.get_order_item_status_history())
         logger.info(f"Sum over time: {total_over_time: .3f}")
-        total_score = total_distance / vehicle_num + total_over_time * Configs.LAMDA
+        total_score = total_distance / vehicle_num + total_over_time * Configs.LAMDA / 3600
         logger.info(f"Total score: {total_score: .3f}")
         return total_score
 
