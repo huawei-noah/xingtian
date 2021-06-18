@@ -22,6 +22,8 @@ import os
 
 
 class Configs(object):
+    MAX_SCORE = 9999999999
+
     # 算法切片的时间间隔, time interval of simulator
     ALG_RUN_FREQUENCY = 10  # 单位分钟
 
@@ -92,6 +94,9 @@ class Configs(object):
 
     # 日志文件的最大数量
     MAX_LOG_FILE_NUM = 100
+
+    # 一天的秒数
+    A_DAY_TIME_SECONDS = 24 * 60 * 60
 
     # 数据集选项，列表为空则选择所有数据集，如[]，[1], [1, 2, 3], [64]
     selected_instances = [1]
