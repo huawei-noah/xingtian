@@ -88,6 +88,8 @@ def get_order_info(file_path: str, ini_time: int):
         committed_completion_datetime = datetime.datetime.combine(
             ini_datetime.date(), datetime.datetime.strptime(row['committed_completion_time'], '%H:%M:%S').time())
         committed_completion_time = time.mktime(committed_completion_datetime.timetuple())
+        if committed_completion_time < creation_time:
+            committed_completion_time += Configs.A_DAY_TIME_SECONDS
 
         order = Order(order_id, components, demand, int(creation_time), int(committed_completion_time),
                       load_time, unload_time, delivery_id, pickup_id)
