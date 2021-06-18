@@ -78,6 +78,9 @@ class SimulateEnvironment(object):
         # 目标函数值, objective
         self.total_score = sys.maxsize
 
+        # 算法调用命令
+        self.algorithm_calling_command = ''
+
     # 初始化历史记录
     def __ini_history(self):
         history = History()
@@ -221,9 +224,10 @@ class SimulateEnvironment(object):
         convert_input_info_to_json_files(input_info)
 
         # 2. Run the algorithm
-        command = get_algorithm_calling_command()
+        if not self.algorithm_calling_command:
+            self.algorithm_calling_command = get_algorithm_calling_command()
         time_start_algorithm = time.time()
-        used_seconds, message = subprocess_function(command)
+        used_seconds, message = subprocess_function(self.algorithm_calling_command)
 
         # 3. parse the output json of the algorithm
         if Configs.ALGORITHM_SUCCESS_FLAG in message:
@@ -234,11 +238,12 @@ class SimulateEnvironment(object):
                 dispatch_result = DispatchResult(vehicle_id_to_destination, vehicle_id_to_planned_route)
                 return used_seconds, dispatch_result
             else:
-                logger.error('output.json is not the newest')
+                logger.error("Output_json files from the algorithm is not the newest.")
                 sys.exit(-1)
         else:
             logger.error(message)
-            raise ValueError('未寻获算法输出成功标识SUCCESS')
+            logger.error("Can not catch the 'SUCCESS' from the algorithm. 未寻获算法输出成功标识'SUCCESS'。")
+            sys.exit(-1)
 
     # 判断是否完成所有订单的派发
     def complete_the_dispatch_of_all_orders(self):
