@@ -126,7 +126,8 @@ class SimulateEnvironment(object):
 
             # 若订单已经超时, 但是算法依旧未分配, 模拟终止
             if self.ignore_allocating_timeout_orders(dispatch_result):
-                break
+                logger.error('Simulator terminated')
+                sys.exit(-1)
 
         # 模拟完成车辆剩下的订单
         self.simulate_the_left_ongoing_orders_of_vehicles(self.id_to_vehicle)
@@ -293,7 +294,10 @@ class SimulateEnvironment(object):
         for item_id, item in self.id_to_generated_order_item.items():
             if item_id not in total_item_ids_in_dispatch_result:
                 if item.committed_completion_time < self.cur_time:
-                    logger.error(f"{datetime.datetime.fromtimestamp(self.cur_time)}, Item {item_id} has timed out, "
-                                 f"however it is still ignored in the dispatch result")
+                    logger.error(f"{datetime.datetime.fromtimestamp(self.cur_time)}, "
+                                 f"Item {item_id}'s committed_completion_time is "
+                                 f"{datetime.datetime.fromtimestamp(item.committed_completion_time)} "
+                                 f"which has timed out, "
+                                 f"however it is still ignored in the dispatch result.")
                     return True
         return False
