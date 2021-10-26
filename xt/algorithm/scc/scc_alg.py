@@ -34,8 +34,8 @@ from absl import logging
 from xt.model.tf_compat import tf
 from xt.algorithm import Algorithm
 from xt.algorithm.algorithm import ZFILL_LENGTH
-from xt.algorithm.scc.episode_buffer_np import EpisodeBatchNP, ReplayBufferNP
-from xt.algorithm.scc.transforms import OneHotNp
+from xt.algorithm.qmix.episode_buffer_np import EpisodeBatchNP, ReplayBufferNP
+from xt.algorithm.qmix.transforms import OneHotNp
 from zeus.common.util.register import Registers
 
 
