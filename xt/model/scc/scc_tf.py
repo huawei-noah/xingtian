@@ -53,24 +53,9 @@ class SCCModel(object):
         model_config = model_info.get("model_config", None)
         self.model_config = model_config
         map_name = model_config['map_name']
-        if map_name == '2s3z':
-            self.agent_group = [2, 3]
-        elif map_name == '3m':
-            self.agent_group = [3]
-        elif map_name == '8m':
-            self.agent_group = [8]
-        elif map_name == '3s5z':
-            self.agent_group = [3, 5]
-        elif map_name == '3s5z_vs_3s6z':
-            self.agent_group = [3, 5]
-        elif map_name == '1c3s5z':
-            self.agent_group = [1, 3, 5]
-        elif map_name == '3s_vs_5z':
-            self.agent_group = [3]
-        elif map_name == '5m_vs_6m':
-            self.agent_group = [5]
-        elif map_name == 'MMM2':
-            self.agent_group = [1, 2, 7]
+        agent_group_dict = {'2s3z':[2, 3],'3s5z':[3, 5], '3s5z_vs_3s6z':[3, 5], '1c3s5z':[1, 3, 5], 'MMM2':[1, 2, 7]}
+        if map_name in agent_group_dict:
+            self.agent_group = agent_group_dict[map_name]
         else:
             self.agent_group = [model_config["n_agents"]]
 
