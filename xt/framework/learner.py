@@ -393,7 +393,7 @@ class TrainWorker(object):
         data_dict = get_msg_data(train_data)
 
         # update multi agent train reward without done flag
-        if self.alg.alg_name in ("QMixAlg", ):  # fixme: unify the record op
+        if self.alg.alg_name in ("QMixAlg", ) or self.alg.alg_name in ("SCCAlg", ):  # fixme: unify the record op
             self.actual_step += np.sum(data_dict["filled"])
             self.won_in_episodes.append(data_dict.pop("battle_won"))
             self.logger.update(explore_won_rate=np.nanmean(self.won_in_episodes))
