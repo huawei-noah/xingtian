@@ -1,0 +1,85 @@
+alg_para:
+  alg_name: SCCAlg
+  alg_config:                     # algorithm config
+    batch_size: 32                # train batch size
+    buffer_size: 1000             # train buffer  size of trajectory
+    epsilon_anneal_time: 50000    # time_length of epsilon schedule
+    epsilon_finish: 0.00          # epsilon minimum
+    epsilon_start: 1.0            # epsilon maximum
+    obs_agent_id: True            # use agent id within state
+    obs_last_action: True         # use last action within state with onehot
+    target_update_interval: 200   # interval to update target network
+
+env_para:
+  env_name: StarCraft2Xt
+  env_info: {
+    "continuing_episode": False,
+    "difficulty": "7",
+    "game_version": null,  #  "latest",
+    "map_name": "2s_vs_1sc",
+    "move_amount": 2,
+    "obs_all_health": True,
+    "obs_instead_of_state": False,
+    "obs_last_action": False,
+    "obs_own_health": True,
+    "obs_pathing_grid": False,
+    "obs_terrain_height": False,
+    "obs_timestep_number": False,
+    "reward_death_value": 10,
+    "reward_defeat": 0,
+    "reward_negative_scale": 0.5,
+    "reward_only_positive": True,
+    "reward_scale": True,
+    "reward_scale_rate": 20,
+    "reward_sparse": False,
+    "reward_win": 200,
+    "replay_dir": "",
+    "replay_prefix": "",
+    "state_last_action": True,
+    "state_timestep_number": False,
+    "step_mul": 8,
+    "seed": 22,
+    "heuristic_ai": False,
+    "heuristic_rest": False,
+    "debug": False,
+  }
+
+agent_para:
+  agent_name: StarCraftSCC
+  agent_num : 1
+  agent_config: {
+    'complete_step': 2050000, 
+    }
+
+model_para:
+  actor:
+    model_name: SCCModel         # The qmix model defined within xingtian
+    use_npu: False               # npu usage flag
+    allow_mix_precision: True    # setup mix precision
+
+    model_config:
+      gamma: 0.99                # discount value for accumulative reward
+      mixer_grad_norm_clip: 5    # mixer value for grad norm
+      actor_grad_norm_clip: 5    # actor clip value for grad norm
+      a_lr: 0.0005                # actor learning rate
+      c_lr: 0.0005                # mixer learning rate
+      rnn_hidden_dim: 64         # the dimensionality of rnn hidden
+      batch_size: 32             # train batch size for tensorboard model build
+      use_double_q: True         # build model with double q algorithm
+      dense_unit_number: 128
+      enable_critic_multi_channel: True
+      channel_merge: 'concat'    # concat or add
+      mc_sample_times: 3
+      map_name: "2s_vs_1sc"
+
+
+env_num: 1                       # explore environment number to parallel
+benchmark:
+  id: xt_scc
+  # archive_root: scc_results   # default: ~/xt_archive
+  eval:
+    gap: 256                     # train times call once evaluate
+    evaluator_num: 1             # run eval with how much evaluator instance
+    episodes_per_eval: 32        # run how much episodes within one evaluate
+    max_step_per_episode: 128
+
