@@ -50,7 +50,7 @@ class IMPALAOpt(Algorithm):
         self.async_flag = False
 
         # update to divide model policy
-        self.dist_model_policy = EqualDistPolicy(
+        self.dist_model_policy = FIFODistPolicy(
             alg_config["instance_num"],
             prepare_times=self._prepare_times_per_train)
 
