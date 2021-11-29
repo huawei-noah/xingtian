@@ -1,0 +1,64 @@
+alg_para:
+  alg_name: PPO
+  alg_config:
+    save_model: False  # default False
+    save_interval: 100
+
+env_para:
+  env_name: GymEnv
+  env_info:
+    name: CartPole-v0
+    vision: False
+
+agent_para:
+  agent_name: PPO
+  agent_num : 1
+  agent_config:
+    max_steps: 200
+    complete_step: 2000000
+    episode_count: 10000      # max episode to explore
+
+model_para:
+  actor:
+    model_name: PpoMlp
+    state_dim: [4]
+    action_dim: 2
+    input_dtype: float32
+    model_config:
+      BATCH_SIZE: 200
+      CRITIC_LOSS_COEF: 1.0
+      ENTROPY_LOSS: 0.01
+      LR: 0.0003
+      LOSS_CLIPPING: 0.2
+      MAX_GRAD_NORM: 0.5
+      NUM_SGD_ITER: 10
+      VF_SHARE_LAYERS: False
+      activation: tanh
+      hidden_sizes: [64, 64]
+
+env_num: 2
+speedup: False
+
+# population beased training configuration
+use_pbt: True
+pbt_config:
+  population_size: 7
+  pbt_interval: 50000
+  resample_probability: 0.25  # default 0.25
+  top_rate: 0.2  # default 0.2
+  perturb_factor_delta: 0.2  # default 0.2
+  metric_key: mean_episodic_reward
+  hyperparameters_mutations:
+#    LR: [0.0005, 0.0004, 0.0003, 0.0002, 0.0001]
+    LR:
+      min: 0.0001
+      max: 0.0005
+    CRITIC_LOSS_COEF: [1.0, 0.9, 0.8, 0.7, 0.6]
+    ENTROPY_LOSS: [0.01, 0.02, 0.03, 0.035, 0.04]
+
+benchmark:
+  log_interval_to_train: 200
+  eval:
+    # model_path: /YOUR/PATH/TO/models
+    evaluator_num: 1
+    gap: 1
