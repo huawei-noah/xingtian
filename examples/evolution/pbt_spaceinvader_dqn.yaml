@@ -1,0 +1,47 @@
+alg_para:
+  alg_name: DQN
+  alg_config:
+    train_per_checkpoint: 500
+    prepare_times_per_train: 4
+    learning_starts: 500  # 10000
+    BUFFER_SIZE: 400000
+
+
+env_para:
+  env_name: AtariEnv
+  env_info:
+    name: SpaceInvadersNoFrameskip-v4
+    vision: False
+
+agent_para:
+  agent_name: AtariDqn
+  agent_num : 1
+  agent_config:
+    max_steps: 2000
+    complete_step: 5000000  # 10000000
+    #episode_count: 30000  # 200000
+
+
+model_para:
+  actor:
+    model_name: DqnCnn
+    state_dim: [84,84,4]
+    action_dim: 6
+    model_config:
+      LR: 0.00015
+
+env_num: 2
+speedup: False
+
+# population based training configuration
+use_pbt: True
+pbt_config:
+  population_size: 23
+  pbt_interval:  500000 # 1000000
+  metric_key: mean_episodic_reward
+  hyperparameters_mutations:  # support alg and model config set
+    LR: [0.0004, 0.0003, 0.0002, 0.00015, 0.0001, 0.00005]
+    BUFFER_SIZE: [800000, 600000, 400000, 200000, 100000]
+
+benchmark:
+  log_interval_to_train: 400

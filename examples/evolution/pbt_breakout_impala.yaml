@@ -1,0 +1,50 @@
+alg_para:
+  alg_name: IMPALAOpt
+  alg_config: 
+    train_per_checkpoint: 1
+    prepare_times_per_train: 1
+    BATCH_SIZE: 512
+
+
+env_para:
+  env_name: VectorAtariEnv
+  env_info: 
+    name: BreakoutNoFrameskip-v4
+    vision: False
+    vector_env_size: 1
+
+agent_para:
+  agent_name: AtariImpalaOpt
+  agent_num : 1
+  agent_config:
+    max_steps: 128
+    complete_step: 50020000
+
+model_para:
+  actor:
+    model_name: ImpalaCnnOpt
+    state_dim: [84,84,4]
+    input_dtype: uint8
+    state_mean: 0.0
+    state_std: 255.0
+    action_dim: 4
+    model_config:
+      LR: 0.0005
+      sample_batch_step: 128
+      grad_norm_clip: 40.0
+
+env_num: 2
+speedup: False
+
+# population based training configuration
+use_pbt: True
+pbt_config:
+  population_size: 25
+  pbt_interval:  500000 # 1000000
+  metric_key: mean_episodic_reward
+  hyperparameters_mutations:  # support alg and model config set
+    LR: [0.0008, 0.0006, 0.0005, 0.0004, 0.0002, 0.0001]
+    grad_norm_clip: [60.0, 50.0, 40.0, 30.0, 20.0]
+
+benchmark:
+  log_interval_to_train: 400
