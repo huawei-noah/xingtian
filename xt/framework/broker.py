@@ -303,7 +303,7 @@ class Broker(object):
         # Note: need check it if add explorer dynamic
         # buf size vary with env_num&algorithm
         # ~4M, impala atari model
-        self._buf = ShareBuf(live=0, size=400000000, max_keep=94, start=True)
+        self._buf = ShareBuf(live=1, size=400000000, max_keep=94, start=True)
 
     def start_data_transfer(self):
         """Start transfer data and other thread."""
