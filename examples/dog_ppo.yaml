@@ -1,0 +1,43 @@
+alg_para:
+  alg_name: PPO
+
+env_para:
+  env_name: GymEnv
+  env_info:
+    name: MiniGrid-Dog-v0
+    vision: False
+
+agent_para:
+  agent_name: AtariPpo
+  agent_num : 1
+  agent_config:
+    max_steps: 200
+    complete_step: 100000
+
+model_para:
+  actor:
+    model_name: PpoCnn
+    state_dim: [84, 84, 3]
+    action_dim: 4
+    input_dtype: uint8
+    model_config:
+      BATCH_SIZE: 10
+      CRITIC_LOSS_COEF: 1.0
+      ENTROPY_LOSS: 0.003
+      LOSS_CLIPPING: 0.1
+      LR: 0.00025
+      MAX_GRAD_NORM: 5.0
+      NUM_SGD_ITER: 4
+      SUMMARY: False
+      VF_SHARE_LAYERS: True
+      activation: relu
+      hidden_sizes: [512]
+
+
+env_num: 1
+
+benchmark:
+  log_interval_to_train: 5
+
+
+
