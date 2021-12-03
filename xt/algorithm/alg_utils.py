@@ -26,12 +26,20 @@ from collections import deque, defaultdict
 def _clip_explorer_id(raw_dist_info, clip_set):
     if not clip_set:
         return raw_dist_info
-    elif raw_dist_info["explorer_id"] == -1:
-        raw_dist_info["explorer_id"] = clip_set
-    else:
-        clipped_id = list([_id for _id in raw_dist_info["explorer_id"] if _id in clip_set])
-        raw_dist_info["explorer_id"] = clipped_id
-    return raw_dist_info
+
+    # each broker
+    ret = list()
+    for broker_item in raw_dist_info:
+        if -1 in broker_item["explorer_id"]:
+            broker_item["explorer_id"] = clip_set
+        else:
+            clipped_id = list([_id for _id in broker_item["explorer_id"] if _id in clip_set])
+            broker_item["explorer_id"] = clipped_id
+
+        ret.append(broker_item)
+
+    # logging.debug("after clip: {}".format(ret))
+    return ret
 
 
 class DefaultAlgDistPolicy(object):
