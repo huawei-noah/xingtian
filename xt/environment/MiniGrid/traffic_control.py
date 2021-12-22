@@ -32,7 +32,6 @@ from PIL import Image, ImageDraw, ImageFont
 
 class TrafficControlEnv(gym.Env):
     def __init__(self, map, save_frame=False, seed=2021):
-
         if map == 'easy':
             self.straight_area = 2
             self.init_range = [0,2]
@@ -311,14 +310,3 @@ class TrafficControlEnv(gym.Env):
                     self.draw_agent_ellipse(img, agent_i, xy_real[0], xy_real[1], collide=False, margin=0.38)
                     self.draw_agent_num(img, agent_i, xy_real[0], xy_real[1], margin=0.38)
         return img
-
-
-
-
-
-
-            
-
-
-
-            
