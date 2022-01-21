@@ -46,7 +46,7 @@ class DefaultAlgDistPolicy(object):
     def __init__(self, actor_num, **kwargs):
         self.actor_num = actor_num
         # message {"broker_id": -1, "explorer_id": -1, "agent_id": -1}
-        self.default_policy = {"broker_id": -1, "explorer_id": -1}
+        self.default_policy = [{"broker_id": -1, "explorer_id": -1}]
 
     def get_dist_info(self, model_index, explorer_set=None):
         return _clip_explorer_id(self.default_policy, explorer_set)
