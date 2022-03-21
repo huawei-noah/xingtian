@@ -22,11 +22,15 @@ import sys
 import time
 
 import gym
+from gym_minigrid.register import register
 
 from xt.environment.environment import Environment
 from xt.environment.gym import infer_action_type
 from zeus.common.util.register import Registers
 
+register(id='MiniGrid-Ant-v0', entry_point='xt.environment.MiniGrid.ant:AntEnv')
+register(id='MiniGrid-Dog-v0', entry_point='xt.environment.MiniGrid.dog:DogEnv')
+register(id='MiniGrid-TrafficControl-v0', entry_point='xt.environment.MiniGrid.traffic_control:TrafficControlEnv')
 
 @Registers.env
 class GymEnv(Environment):
