@@ -1,6 +1,8 @@
 zmq
 h5py
-gym[atari]
+gym[atari]==0.19.0
+gym_minigrid==1.15.0
+tensorflow==1.15.0
 tqdm
 imageio
 matplotlib
@@ -13,3 +15,4 @@ absl-py
 psutil
 tensorboardX
 setproctitle
+scipy
