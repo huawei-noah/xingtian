@@ -17,19 +17,20 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-from xt.model.tf_compat import tf
-from xt.model.tf_compat import Conv2D, Dense, Flatten, Input, Model, Adam, Lambda, K
-from xt.model.dqn.default_config import LR
-from xt.model.dqn.dqn_mlp import layer_normalize, layer_add
-from xt.model import XTModel
-from xt.model.tf_utils import TFVariables
-from zeus.common.util.common import import_config
-
 from zeus.common.util.register import Registers
+from zeus.common.util.common import import_config
+from xt.model.model_ms import XTModel_MS
+from xt.model.ms_utils import MSVariables
+from xt.model.dqn.default_config import LR
+from xt.model.ms_compat import ms
+from xt.model.ms_compat import Conv2d, Dense, Flatten, ReLU, Adam, MSELoss, WithLossCell, MultitypeFuncGraph, \
+    DynamicLossScaleUpdateCell, Cast, Cell, Tensor
+from zeus.common.util.common import import_config
+import mindspore.ops as ops
 
 
 @Registers.model
-class DqnCnn(XTModel):
+class DqnCnn(XTModel_MS):
     """Docstring for DqnCnn."""
 
     def __init__(self, model_info):
@@ -40,44 +41,96 @@ class DqnCnn(XTModel):
         self.action_dim = model_info['action_dim']
         self.learning_rate = LR
         self.dueling = model_config.get('dueling', False)
+        self.net = DqnCnnNet(state_dim=self.state_dim, action_dim=self.action_dim, dueling=self.dueling)
         super().__init__(model_info)
 
     def create_model(self, model_info):
         """Create Deep-Q CNN network."""
-        state = Input(shape=self.state_dim, dtype="uint8")
-        state1 = Lambda(lambda x: K.cast(x, dtype='float32') / 255.)(state)
-        convlayer = Conv2D(32, (8, 8), strides=(4, 4), activation='relu', padding='valid')(state1)
-        convlayer = Conv2D(64, (4, 4), strides=(2, 2), activation='relu', padding='valid')(convlayer)
-        convlayer = Conv2D(64, (3, 3), strides=(1, 1), activation='relu', padding='valid')(convlayer)
-        flattenlayer = Flatten()(convlayer)
-        denselayer = Dense(256, activation='relu')(flattenlayer)
-        value = Dense(self.action_dim, activation='linear')(denselayer)
-        if self.dueling:
-            adv = Dense(1, activation='linear')(denselayer)
-            mean = Lambda(layer_normalize)(value)
-            value = Lambda(layer_add)([adv, mean])
-        model = Model(inputs=state, outputs=value)
-        adam = Adam(lr=self.learning_rate, clipnorm=10.)
-        model.compile(loss='mse', optimizer=adam)
-        if model_info.get("summary"):
-            model.summary()
-
-        self.infer_state = tf.placeholder(tf.uint8, name="infer_input",
-                                          shape=(None, ) + tuple(self.state_dim))
-        self.infer_v = model(self.infer_state)
-        self.actor_var = TFVariables([self.infer_v], self.sess)
-
-        self.sess.run(tf.initialize_all_variables())
+        loss_fn = MSELoss()
+        adam = Adam(params=self.net.trainable_params(), learning_rate=self.learning_rate, use_amsgrad=True)
+        loss_net = WithLossCell(self.net, loss_fn)
+        device_target = ms.get_context("device_target")
+        if device_target == 'Ascend':
+            manager = DynamicLossScaleUpdateCell(loss_scale_value=2 ** 12, scale_factor=2, scale_window=1000)
+            model = MyTrainOneStepCell(loss_net, adam, manager, grad_clip=True, clipnorm=10.)
+        else:
+            model = MyTrainOneStepCell(loss_net, adam, grad_clip=True, clipnorm=10.)
+        self.actor_var = MSVariables(self.net)
         return model
 
     def predict(self, state):
-        """
-        Do predict use the newest model.
+        state = Tensor(state, dtype=ms.float32)
+        return self.net(state).asnumpy()
 
-        :param state:
-        :return:
-        """
-        with self.graph.as_default():
-            K.set_session(self.sess)
-            feed_dict = {self.infer_state: state}
-            return self.sess.run(self.infer_v, feed_dict)
+
+class DqnCnnNet(Cell):
+    def __init__(self, **descript):
+        super(DqnCnnNet, self).__init__()
+        self.state_dim = descript.get("state_dim")
+        action_dim = descript.get("action_dim")
+        self.dueling = descript.get("dueling")
+        self.convlayer1 = Conv2d(self.state_dim[2], 32, kernel_size=8, stride=4, pad_mode='valid',
+                                 weight_init="xavier_uniform")
+        self.convlayer2 = Conv2d(32, 64, kernel_size=4, stride=2, pad_mode='valid', weight_init="xavier_uniform")
+        self.convlayer3 = Conv2d(64, 64, kernel_size=3, stride=1, pad_mode='valid', weight_init="xavier_uniform")
+        self.relu = ReLU()
+        self.flattenlayer = Flatten()
+        _dim = (
+                (((self.state_dim[0] - 4) // 4 - 2) // 2 - 2)
+                * (((self.state_dim[1] - 4) // 4 - 2) // 2 - 2)
+                * 64
+        )
+        self.denselayer1 = Dense(_dim, 256, activation='relu', weight_init="xavier_uniform")
+        self.denselayer2 = Dense(256, action_dim, weight_init="xavier_uniform")
+        self.denselayer3 = Dense(256, 1, weight_init="xavier_uniform")
+
+    def construct(self, x):
+        out = Cast()(x.transpose((0, 3, 1, 2)), ms.float32) / 255.
+        out = self.convlayer1(out)
+        out = self.relu(out)
+        out = self.convlayer2(out)
+        out = self.relu(out)
+        out = self.convlayer3(out)
+        out = self.relu(out)
+        out = self.flattenlayer(out)
+        out = self.denselayer1(out)
+        value = self.denselayer2(out)
+        if self.dueling:
+            adv = self.denselayer3(out)
+            mean = value.sub(value.mean(axis=1, keep_dims=True))
+            value = adv.add(mean)
+        return value
+
+
+_grad_scale = MultitypeFuncGraph("grad_scale")
+
+
+@_grad_scale.register("Tensor", "Tensor")
+def tensor_grad_scale(scale, grad):
+    return grad * ms.ops.cast(ms.ops.Reciprocal()(scale), ms.ops.dtype(grad))
+
+
+class MyTrainOneStepCell(ms.nn.TrainOneStepWithLossScaleCell):
+    def __init__(self, network, optimizer, scale_sense=1, grad_clip=False, clipnorm=1.):
+        self.clipnorm = clipnorm
+        if isinstance(scale_sense, (int, float)):
+            scale_sense = Tensor(scale_sense, dtype=ms.float32)
+        super(MyTrainOneStepCell, self).__init__(network, optimizer, scale_sense)
+        self.grad_clip = grad_clip
+
+    def construct(self, state, label):
+        weights = self.weights
+        loss = self.network(state, label)
+        scaling_sens = self.scale_sense
+        status, scaling_sens = self.start_overflow_check(loss, scaling_sens)
+        scaling_sens_filled = ms.ops.ones_like(loss) * ms.ops.cast(scaling_sens, ms.ops.dtype(loss))
+        grads = self.grad(self.network, weights)(state, label, scaling_sens_filled)
+        grads = self.hyper_map(ms.ops.partial(_grad_scale, scaling_sens), grads)
+        if self.grad_clip:
+            grads = ms.ops.clip_by_global_norm(grads, self.clipnorm)
+        grads = self.grad_reducer(grads)
+        cond = self.get_overflow_status(status, grads)
+        overflow = self.process_loss_scale(cond)
+        if not overflow:
+            loss = ops.depend(loss, self.optimizer(grads))
+        return loss

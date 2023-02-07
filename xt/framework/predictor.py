@@ -23,6 +23,10 @@ from time import time
 from copy import deepcopy
 from xt.algorithm import alg_builder
 import setproctitle
+try:
+    from xt.model.ms_compat import ms
+except:
+    pass
 from zeus.common.ipc.uni_comm import UniComm
 from zeus.common.ipc.message import message, get_msg_data, set_msg_info, set_msg_data, get_msg_info
 from zeus.common.util.profile_stats import PredictStats, TimerRecorder
@@ -86,6 +90,10 @@ class Predictor(object):
 
     def start(self):
         os.environ["CUDA_VISIBLE_DEVICES"] = str(-1)
+        try:
+            ms.set_context(device_target='CPU')
+        except:
+            pass
         alg_para = self.config_info.get('alg_para')
         setproctitle.setproctitle("xt_predictor")
 
