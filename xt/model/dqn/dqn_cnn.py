@@ -107,7 +107,7 @@ _grad_scale = MultitypeFuncGraph("grad_scale")
 
 @_grad_scale.register("Tensor", "Tensor")
 def tensor_grad_scale(scale, grad):
-    return grad * ms.ops.cast(ms.ops.Reciprocal()(scale), ms.ops.dtype(grad))
+    return grad * ops.cast(ops.Reciprocal()(scale), ops.dtype(grad))
 
 
 class MyTrainOneStepCell(ms.nn.TrainOneStepWithLossScaleCell):
@@ -123,11 +123,11 @@ class MyTrainOneStepCell(ms.nn.TrainOneStepWithLossScaleCell):
         loss = self.network(state, label)
         scaling_sens = self.scale_sense
         status, scaling_sens = self.start_overflow_check(loss, scaling_sens)
-        scaling_sens_filled = ms.ops.ones_like(loss) * ms.ops.cast(scaling_sens, ms.ops.dtype(loss))
+        scaling_sens_filled = ops.ones_like(loss) * ops.cast(scaling_sens, ops.dtype(loss))
         grads = self.grad(self.network, weights)(state, label, scaling_sens_filled)
-        grads = self.hyper_map(ms.ops.partial(_grad_scale, scaling_sens), grads)
+        grads = self.hyper_map(ops.partial(_grad_scale, scaling_sens), grads)
         if self.grad_clip:
-            grads = ms.ops.clip_by_global_norm(grads, self.clipnorm)
+            grads = ops.clip_by_global_norm(grads, self.clipnorm)
         grads = self.grad_reducer(grads)
         cond = self.get_overflow_status(status, grads)
         overflow = self.process_loss_scale(cond)
