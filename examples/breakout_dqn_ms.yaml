@@ -1,0 +1,32 @@
+alg_para:
+  alg_name: DQN
+  alg_config: {
+    'train_per_checkpoint': 50,
+    'prepare_times_per_train': 4,
+    'learning_starts': 10000,
+    'BUFFER_SIZE': 400000,
+    }
+
+env_para:
+  env_name: AtariEnv
+  env_info: { 'name': BreakoutNoFrameskip-v4, 'vision': False}
+
+agent_para:
+  agent_name: AtariDqn
+  agent_num : 1
+  agent_config: {
+    'max_steps': 2000,
+    'complete_step': 10000000,
+    'episode_count': 200000
+    }
+
+model_para:
+  actor:
+    model_name: DqnCnnMS
+    state_dim: [84,84,4]
+    action_dim: 4
+    model_config: {
+      'LR': 0.00015,
+      }
+
+env_num: 2

@@ -17,18 +17,18 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+from xt.model.tf_compat import Dense, Input, Model, Adam, tf, Lambda
+from xt.model.tf_utils import TFVariables
 from xt.model.dqn.default_config import HIDDEN_SIZE, NUM_LAYERS, LR
-from xt.model.model_ms import XTModel_MS
+from xt.model import XTModel
 from zeus.common.util.common import import_config
+
 from zeus.common.util.register import Registers
-from xt.model.ms_compat import ms, Dense, Adam, MSELoss, WithLossCell, Cell, DynamicLossScaleUpdateCell, Tensor
-from xt.model.ms_utils import MSVariables
-from xt.model.dqn.dqn_cnn import MyTrainOneStepCell
-import mindspore.ops as ops
 
 
 @Registers.model
-class DqnMlp(XTModel_MS):
+class DqnMlp(XTModel):
+    """Docstring for DqnMlp."""
 
     def __init__(self, model_info):
         model_config = model_info.get('model_config', None)
@@ -38,46 +38,50 @@ class DqnMlp(XTModel_MS):
         self.action_dim = model_info['action_dim']
         self.learning_rate = LR
         self.dueling = model_config.get('dueling', False)
-        self.net = DqnMlpNet(state_dim=self.state_dim, action_dim=self.action_dim, dueling=self.dueling)
         super().__init__(model_info)
 
     def create_model(self, model_info):
-        """Create Deep-Q CNN network."""
-        loss_fn = MSELoss()
-        adam = Adam(params=self.net.trainable_params(), learning_rate=self.learning_rate, use_amsgrad=True)
-        loss_net = WithLossCell(self.net, loss_fn)
-        device_target = ms.get_context("device_target")
-        if device_target == 'Ascend':
-            manager = DynamicLossScaleUpdateCell(loss_scale_value=2 ** 12, scale_factor=2, scale_window=1000)
-            model = MyTrainOneStepCell(loss_net, adam, manager, grad_clip=True, clipnorm=10.)
-        else:
-            model = MyTrainOneStepCell(loss_net, adam, grad_clip=True, clipnorm=10.)
-        self.actor_var = MSVariables(self.net)
+        """Create Deep-Q network."""
+        state = Input(shape=self.state_dim)
+        denselayer = Dense(HIDDEN_SIZE, activation='relu')(state)
+        for _ in range(NUM_LAYERS - 1):
+            denselayer = Dense(HIDDEN_SIZE, activation='relu')(denselayer)
+
+        value = Dense(self.action_dim, activation='linear')(denselayer)
+        if self.dueling:
+            adv = Dense(1, activation='linear')(denselayer)
+            mean = Lambda(layer_normalize)(value)
+            value = Lambda(layer_add)([adv, mean])
+
+        model = Model(inputs=state, outputs=value)
+        adam = Adam(lr=self.learning_rate)
+        model.compile(loss='mse', optimizer=adam)
+
+        self.infer_state = tf.placeholder(tf.float32, name="infer_input",
+                                          shape=(None, ) + tuple(self.state_dim))
+        self.infer_v = model(self.infer_state)
+        self.actor_var = TFVariables([self.infer_v], self.sess)
+
+        self.sess.run(tf.initialize_all_variables())
         return model
 
     def predict(self, state):
-        state = Tensor(state, dtype=ms.float32)
-        return self.net(state).asnumpy()
+        """
+        Do predict use the newest model.
+
+        :param state:
+        :return:
+        """
+        with self.graph.as_default():
+
+            feed_dict = {self.infer_state: state}
+            return self.sess.run(self.infer_v, feed_dict)
+
+def layer_normalize(x):
+    """Normalize data."""
+    return tf.subtract(x, tf.reduce_mean(x, axis=1, keep_dims=True))
 
 
-class DqnMlpNet(Cell):
-    def __init__(self, **descript):
-        super(DqnMlpNet, self).__init__()
-        self.state_dim = descript.get("state_dim")
-        self.action_dim = descript.get("action_dim")
-        self.dueling = descript.get("dueling")
-        self.denselayer1 = Dense(self.state_dim[-1], HIDDEN_SIZE, activation='relu', weight_init='xavier_uniform')
-        self.denselayer2 = Dense(HIDDEN_SIZE, HIDDEN_SIZE, activation='relu', weight_init='xavier_uniform')
-        self.denselayer3 = Dense(HIDDEN_SIZE, self.action_dim, weight_init='xavier_uniform')
-        self.denselayer4 = Dense(HIDDEN_SIZE, 1, weight_init='xavier_uniform')
-
-    def construct(self, x):
-        out = self.denselayer1(x.astype("float32"))
-        for _ in range(NUM_LAYERS - 1):
-            out = self.denselayer2(out)
-        value = self.denselayer3(out)
-        if self.dueling:
-            adv = self.denselayer4(out)
-            mean = value.sub(value.mean(axis=1, keep_dims=True))
-            value = adv.add(mean)
-        return value
+def layer_add(x):
+    """Compute Q given Advantage and V."""
+    return x[0] + x[1]

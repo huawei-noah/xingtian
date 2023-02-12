@@ -17,37 +17,23 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Model base."""
+"""MS_Model base."""
 
 import os
 import glob
 import mindspore as ms
+from xt.model.model import XTModel
 from xt.model.ms_utils import MSVariables
 
 os.environ["KERAS_BACKEND"] = "mindspore"
 
 
-class XTModel_MS(object):
-    """
-    Model Base class for model module.
-
-    Owing to the same name to Keras.Model, set `XTModel` as the base class.
-    User could inherit the XTModel, to implement their model.
-    """
+class XTModel_MS(XTModel):
 
     def __init__(self, model_info):
-        """
-        Initialize XingTian Model.
-
-        To avoid the compatibility problems about tensorflow's versions.
-        Model class will hold their graph&session within itself.
-        Now, we used the keras's API to create models.
-        :param model_info:
-        """
         # User Could assign it within create model.
         self.actor_var = None
         self._summary = model_info.get("summary", False)
-        # init sess within the graph without assign the graph into sess.
         self.model_format = model_info.get('model_format')
         self.max_to_keep = model_info.get("max_to_keep", 100)
         self.model = self.create_model(model_info)
@@ -58,10 +44,6 @@ class XTModel_MS(object):
                 print("load weight: {} success.".format(model_name))
             except BaseException:
                 print("load weight: {} failed!".format(model_name))
-
-    def create_model(self, model_info):
-        """Abstract method for creating model."""
-        raise NotImplementedError
 
     def predict(self, state):
         """
@@ -77,12 +59,12 @@ class XTModel_MS(object):
         """Train the model."""
         state = ms.Tensor(state, dtype=ms.float32)
         label = ms.Tensor(label, dtype=ms.float32)
-        loss = self.model(state, label)
+        loss = self.model.train_network(state, label)
+        self.actor_var = MSVariables(self.model.train_network)
         return loss.asnumpy().item()
 
     def set_weights(self, weights):
         """Set weight with memory tensor."""
-
         self.actor_var.set_weights(weights)
 
     def get_weights(self):
@@ -97,6 +79,7 @@ class XTModel_MS(object):
         # check max model file to keep
         if self.max_to_keep > -1:
             check_keep_model(os.path.dirname(file_name), self.max_to_keep)
+        self.actor_var.save_weights(file_name + ".npz")
 
     def load_model(self, model_name):
         self.actor_var.set_weights_with_npz(model_name)

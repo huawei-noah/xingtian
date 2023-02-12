@@ -23,7 +23,7 @@ import numpy as np
 from mindspore import nn
 import mindspore as ms
 import copy
-from collections import OrderedDict, deque
+from collections import OrderedDict
 
 
 class MSVariables:
@@ -43,7 +43,6 @@ class MSVariables:
             if param.name in to_weights:
                 new_param_data = ms.Tensor(copy.deepcopy(to_weights[param.name]))
                 param.set_data(new_param_data, param.sliced)
-        return
 
     def read_weights(weight_file: str):
         """Read weights with numpy.npz"""
