@@ -59,8 +59,8 @@ class XTModel_MS(XTModel):
         """Train the model."""
         state = ms.Tensor(state, dtype=ms.float32)
         label = ms.Tensor(label, dtype=ms.float32)
-        loss = self.model.train_network(state, label)
-        self.actor_var = MSVariables(self.model.train_network)
+        loss = self.model.network(state, label)
+        self.actor_var = MSVariables(self.model.network)
         return loss.asnumpy().item()
 
     def set_weights(self, weights):
