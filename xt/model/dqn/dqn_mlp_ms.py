@@ -21,7 +21,7 @@ from xt.model.dqn.default_config import HIDDEN_SIZE, NUM_LAYERS, LR
 from xt.model.model_ms import XTModel_MS
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
-from xt.model.ms_compat import Dense, Adam, MSELoss, Cell, Model, ms
+from xt.model.ms_compat import Dense, Adam, MSELoss, Cell, Model, DynamicLossScaleUpdateCell, ms
 import mindspore.ops as ops
 from xt.model.ms_utils import MSVariables
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
@@ -47,7 +47,12 @@ class DqnMlpMS(XTModel_MS):
         adam = Adam(params=self.net.trainable_params(), learning_rate=self.learning_rate)
         # model = Model(self.net, loss_fn=loss, optimizer=adam)
         loss_net = ms.nn.WithLossCell(self.net, loss_fn)
-        model = MyTrainOneStepCell(loss_net, adam, scale_sense=1, grad_clip=True)
+        device_target = ms.get_context("device_target")
+        if device_target == 'Ascend':
+            manager = DynamicLossScaleUpdateCell(loss_scale_value=2 ** 12, scale_factor=2, scale_window=1000)
+            model = MyTrainOneStepCell(loss_net, adam, manager, grad_clip=True, clipnorm=10.)
+        else:
+            model = MyTrainOneStepCell(loss_net, adam, grad_clip=True, clipnorm=10.)
         self.actor_var = MSVariables(self.net)
         return model
 

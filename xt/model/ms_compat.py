@@ -46,12 +46,6 @@ if ms.__version__ in ("1.9.0"):
     from mindspore.ops import Cast, MultitypeFuncGraph, ReduceSum, ReduceMax, ReduceMean
     from mindspore import History
 
-def loss_to_val(loss):
-    """Make keras instance into value."""
-    if isinstance(loss, History):
-        loss = loss.history.get("loss")[0]
-    return loss
-
 
 DTYPE_MAP = {
     "float32": ms.float32,

@@ -52,15 +52,13 @@ class XTModel_MS(XTModel):
         :param state:
         :return: output tensor ref to policy.model
         """
-        state = ms.Tensor(state)
-        return self.model.predict(state).asnumpy()
+        return self.model.predict(state)
 
     def train(self, state, label):
         """Train the model."""
         state = ms.Tensor(state, dtype=ms.float32)
         label = ms.Tensor(label, dtype=ms.float32)
-        loss = self.model.network(state, label)
-        self.actor_var = MSVariables(self.model.network)
+        loss = self.model(state, label)
         return loss.asnumpy().item()
 
     def set_weights(self, weights):
