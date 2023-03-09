@@ -40,11 +40,18 @@ if ms.__version__ in ("1.9.0"):
     from mindspore.nn import Adam
     from mindspore.nn import Conv2d, Dense, Flatten, ReLU
     from mindspore.nn import MSELoss
-    from mindspore.nn import WithLossCell,TrainOneStepCell, SoftmaxCrossEntropyWithLogits
-    from mindspore.nn import Cell, WithLossCell, DynamicLossScaleUpdateCell
+    from mindspore.train import Model
+    from mindspore.nn import WithLossCell, TrainOneStepCell, SoftmaxCrossEntropyWithLogits, SequentialCell
+    from mindspore.nn import Cell, WithLossCell, DynamicLossScaleUpdateCell, get_activation
     from mindspore import Model, Tensor
-    from mindspore.ops import Cast, MultitypeFuncGraph, ReduceSum, ReduceMax, ReduceMean
+    from mindspore.ops import Cast, MultitypeFuncGraph, ReduceSum, ReduceMax, ReduceMin, ReduceMean, Reciprocal
     from mindspore import History
+
+def loss_to_val(loss):
+    """Make keras instance into value."""
+    if isinstance(loss, History):
+        loss = loss.history.get("loss")[0]
+    return loss
 
 
 DTYPE_MAP = {

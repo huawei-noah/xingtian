@@ -1,7 +1,6 @@
 from xt.model.model_utils_ms import ACTIVATION_MAP_MS, get_mlp_backbone_ms, get_mlp_default_settings_ms
 from xt.model.ppo.default_config import MLP_SHARE_LAYERS
 from xt.model.ppo.ppo_ms import PPOMS
-from xt.model.tf_compat import tf
 from zeus.common.util.register import Registers
 from xt.model.ms_utils import MSVariables
 
