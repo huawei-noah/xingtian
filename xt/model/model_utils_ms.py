@@ -129,7 +129,6 @@ class CnnBackboneShare(Cell):
         self.dense_layer_share = bulid_mlp_layers_ms(dim, hidden_sizes, activation)
         self.dense_pi = Dense(hidden_sizes[-1], act_dim, weight_init="XavierUniform")
         self.dense_v = Dense(hidden_sizes[-1], 1, weight_init="XavierUniform")
-
     def construct(self, x):
         x = x.transpose((0, 3, 1, 2))
         if self.dtype == "uint8":
@@ -139,7 +138,6 @@ class CnnBackboneShare(Cell):
         share = self.dense_layer_share(share)
         pi_latent = self.dense_pi(share)
         out_value = self.dense_v(share)
-
         return [pi_latent, out_value]
 
 

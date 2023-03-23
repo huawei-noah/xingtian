@@ -58,7 +58,7 @@ class DiagGaussianDist(ActionDist):
         self.shape = ops.Shape()
         self.square = ops.Square()
         self.Normal = ops.StandardNormal()
-
+        self.cast = Cast()
     def init_by_param(self, param):
         self.param = param
         self.mean, self.log_std = ops.split(self.param, axis=-1, output_num=2)
@@ -72,7 +72,7 @@ class DiagGaussianDist(ActionDist):
 
     def neglog_prob(self, x,mean,sd):
         log_sd = self.log(sd)
-        neglog_prob= 0.5 * self.log(2.0 * np.pi) * Cast()((self.shape(x)[-1]), ms.float32) + \
+        neglog_prob= 0.5 * self.log(2.0 * np.pi) * self.cast()((self.shape(x)[-1]), ms.float32) + \
             0.5 * self.reduce_sum(self.square((x - mean) / sd), axis=-1) + \
             self.reduce_sum(log_sd, axis=-1)
         return neglog_prob
@@ -106,7 +106,8 @@ class CategoricalDist(ActionDist):
         self.exp = ops.Exp()
         self.log = ops.Log()
         self.expand_dims = ops.ExpandDims()
-
+        self.random_categorical = ops.RandomCategorical(dtype=ms.int32)
+        self.on_value, self.off_value =  Tensor(1.0, ms.float32), Tensor(0.0, ms.float32)
     def init_by_param(self, logits):
         self.logits = logits
 
@@ -117,17 +118,16 @@ class CategoricalDist(ActionDist):
         return ms.int32
 
     def neglog_prob(self, x,logits):
-        on_value, off_value =  Tensor(1.0, ms.float32), Tensor(0.0, ms.float32)
-        x = self.OneHot(x , self.size, on_value, off_value)
+        x = self.OneHot(x , self.size, self.on_value, self.off_value)
         loss, dlogits = self.softmax_cross(logits, x)
         return self.expand_dims(loss, -1)
 
 
     def entropy(self,logits):
-        
+
         rescaled_logits = logits - self.reduce_max(logits, -1)
         exp_logits = self.exp(rescaled_logits)
-        
+
         z = self.reduce_sum(exp_logits, -1)
         p = exp_logits / z
         return self.reduce_sum(p * (self.log(z) - rescaled_logits), -1)
@@ -149,8 +149,7 @@ class CategoricalDist(ActionDist):
     def sample(self,logits):
         # u = tf.random_uniform(tf.shape(self.logits), dtype=self.logits.dtype)
         # return tf.argmax(self.logits - tf.log(-tf.log(u)), axis=-1, output_type=tf.int32)
-        action = ops.squeeze(ops.random_categorical(logits,1,dtype=ms.int32),-1)
-        return  action
+        return  self.random_categorical(logits,1,0).squeeze(-1)
 
 
 def make_dist(ac_type, ac_dim):
