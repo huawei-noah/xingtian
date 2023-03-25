@@ -2,11 +2,9 @@
 
 import numpy as np
 from xt.model.tf_compat import K, Conv2D, Input, Lambda, Flatten, Model, Dense, Concatenate, tf
-from xt.model.tf_utils import gelu, norm_initializer
 
 from xt.model.ms_compat import ms, SequentialCell, Dense, Conv2d, Flatten, get_activation, Cell
 from mindspore._checkparam import twice
-from mindspore import nn, ops
 
 ACTIVATION_MAP_MS = {
     'sigmoid': 'sigmoid',
@@ -39,6 +37,8 @@ class MlpBackbone(Cell):
         self.dense_out = Dense(hidden_sizes[-1], 1, weight_init="XavierUniform")
 
     def construct(self, x):
+        if(x.dtype==ms.float64):
+            x = x.astype(ms.float32)
         pi_latent = self.dense_layer_pi(x)
         pi_latent = self.dense_pi(pi_latent)
         out_value = self.dense_layer_v(x)
@@ -57,6 +57,8 @@ class MlpBackboneShare(Cell):
         self.dense_out = Dense(hidden_sizes[-1], 1, weight_init="XavierUniform")
 
     def construct(self, x):
+        if(x.dtype==ms.float64):
+            x = x.astype(ms.float32)
         share = self.dense_layer_share(x)
         pi_latent = self.dense_pi(share)
         out_value = self.dense_out(share)
