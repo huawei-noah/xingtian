@@ -4,32 +4,28 @@ from xt.model.ppo.default_config import \
 from xt.model.ms_dist import make_dist
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
-from xt.model.ms_compat import ReduceMean, Tensor, Adam
+from xt.model.ms_compat import ReduceMean, Tensor, Adam,Model
 from xt.model.model_ms import XTModel_MS
 from xt.model.ms_utils import MSVariables
 
 from mindspore.ops import Depend, value_and_grad, clip_by_global_norm, Log, ReduceSum, Minimum, Maximum, Exp, Square, clip_by_value
 from mindspore.nn import Cell, TrainOneStepCell, LossBase
-
+from mindspore import set_context
+import mindspore as ms
+set_context(mode=ms.GRAPH_MODE)
 
 @Registers.model
 class PPOMS(XTModel_MS):
 
     class PPOPredictPolicy(Cell):
-        '''封装用于预测的网络
-            这么做可以避免内存泄漏，具体原理还不清楚
-        '''
-
         def __init__(self, net, dist):
             super(PPOMS.PPOPredictPolicy, self).__init__()
             self.network = net
             self.dist = dist
-
         def construct(self, state):
             pi_latent, v_out = self.network(state)
             action = self.dist.sample(pi_latent)
             logp = self.dist.log_prob(action, pi_latent)
-
             return action, logp, v_out
 
     def __init__(self, model_info):
@@ -57,7 +53,7 @@ class PPOMS(XTModel_MS):
         self.predict_net = self.PPOPredictPolicy(
             self.model, self.dist)
         adam = Adam(params=self.predict_net.trainable_params(),
-                    learning_rate=self._lr)
+                    learning_rate=0.0005)
         loss_fn = WithLossCell(self.critic_loss_coef,
                                self.clip_ratio, self.ent_coef, self.vf_clip)
         forward_fn = NetWithLoss(
@@ -65,10 +61,10 @@ class PPOMS(XTModel_MS):
         self.train_net = MyTrainOneStepCell(
             forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
         self.train_net.set_train()
-
+        
     def predict(self, state):
         """Predict state."""
-        state = Tensor(state)
+        state = Tensor.from_numpy(state)
         action, logp, v_out = self.predict_net(state)
         action = action.asnumpy()
         logp = logp.asnumpy()
@@ -76,7 +72,6 @@ class PPOMS(XTModel_MS):
         return action, logp, v_out
 
     def train(self, state, label):
-        self.model.set_train(True)
         nbatch = state[0].shape[0]
         inds = np.arange(nbatch)
         loss_val = []
@@ -85,12 +80,12 @@ class PPOMS(XTModel_MS):
             for start in range(0, nbatch, self._batch_size):
                 end = start + self._batch_size
                 mbinds = inds[start:end]
-                state_ph = Tensor(state[0][mbinds])
-                behavior_action_ph = Tensor(label[0][mbinds])
-                old_logp_ph = Tensor(label[1][mbinds])
-                adv_ph = Tensor(label[2][mbinds])
-                old_v_ph = Tensor(label[3][mbinds])
-                target_v_ph = Tensor(label[4][mbinds])
+                state_ph = Tensor.from_numpy(state[0][mbinds])
+                behavior_action_ph = Tensor.from_numpy(label[0][mbinds])
+                old_logp_ph = Tensor.from_numpy(label[1][mbinds])
+                adv_ph = Tensor.from_numpy(label[2][mbinds])
+                old_v_ph = Tensor.from_numpy(label[3][mbinds])
+                target_v_ph = Tensor.from_numpy(label[4][mbinds])
                 loss = self.train_net(
                     state_ph, adv_ph, old_logp_ph, behavior_action_ph, target_v_ph, old_v_ph).asnumpy()
                 loss_val.append(np.mean(loss))
