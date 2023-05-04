@@ -5,6 +5,8 @@ from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
 
 # pylint: disable=W0201
+
+
 @Registers.model
 class MuzeroCnnMS(MuzeroModelMS):
     """Docstring for ActorNetwork."""
@@ -28,9 +30,21 @@ class MuzeroCnnMS(MuzeroModelMS):
 class RepNet(Cell):
     def __init__(self, state_dim):
         super().__init__()
-        self.convlayer1 =  Conv2d(state_dim[-1], 32, (8, 8), stride=(4, 4), pad_mode="valid",has_bias=True, weight_init="XavierUniform")
-        self.convlayer2 =  Conv2d(32, 32, (4, 4), stride=(2, 2), pad_mode="valid", has_bias=True,weight_init="XavierUniform")
-        self.convlayer3 =  Conv2d(32, 64, (3, 3), stride=(1, 1), pad_mode="valid", has_bias=True,weight_init="XavierUniform")
+        self.convlayer1 = Conv2d(state_dim[-1],
+                                 32,
+                                 (8,
+                                  8),
+                                 stride=(4,
+                                         4),
+                                 pad_mode="valid",
+                                 has_bias=True,
+                                 weight_init="XavierUniform")
+        self.convlayer2 = Conv2d(32, 32, (4, 4), stride=(2, 2),
+                                 pad_mode="valid", has_bias=True,
+                                 weight_init="XavierUniform")
+        self.convlayer3 = Conv2d(32, 64, (3, 3), stride=(1, 1),
+                                 pad_mode="valid", has_bias=True,
+                                 weight_init="XavierUniform")
         self.relu = ReLU()
         self.flattenlayer = Flatten()
         dim = (
@@ -38,7 +52,11 @@ class RepNet(Cell):
             * (((state_dim[1] - 4) // 4 - 2) // 2 - 2)
             * 64
         )
-        self.denselayer = Dense(dim, HIDDEN_OUT, activation="relu", weight_init="XavierUniform")
+        self.denselayer = Dense(
+            dim,
+            HIDDEN_OUT,
+            activation="relu",
+            weight_init="XavierUniform")
 
     def construct(self, x: ms.Tensor):
         out = x.transpose((0, 3, 1, 2)).astype("float32") / 255.
@@ -56,9 +74,21 @@ class RepNet(Cell):
 class PolicyNet(Cell):
     def __init__(self, value_support_size, action_dim):
         super().__init__()
-        self.hidden = Dense(HIDDEN_OUT, 128, activation="relu", weight_init="XavierUniform")
-        self.out_v = Dense(128, value_support_size, activation="softmax", weight_init="XavierUniform")
-        self.out_p = Dense(128, action_dim, activation="softmax", weight_init="XavierUniform")
+        self.hidden = Dense(
+            HIDDEN_OUT,
+            128,
+            activation="relu",
+            weight_init="XavierUniform")
+        self.out_v = Dense(
+            128,
+            value_support_size,
+            activation="softmax",
+            weight_init="XavierUniform")
+        self.out_p = Dense(
+            128,
+            action_dim,
+            activation="softmax",
+            weight_init="XavierUniform")
 
     def construct(self, x):
         hidden = self.hidden(x)
@@ -70,10 +100,23 @@ class PolicyNet(Cell):
 class DynNet(Cell):
     def __init__(self, action_dim, reward_support_size):
         super().__init__()
-        self.hidden1 = Dense(HIDDEN_OUT + action_dim, 256, activation="relu", weight_init="XavierUniform")
-        self.hidden2 = Dense(256, 128, activation="relu", weight_init="XavierUniform")
-        self.out_h = Dense(128, HIDDEN_OUT, activation="relu", weight_init="XavierUniform")
-        self.out_r = Dense(128, reward_support_size, activation="softmax", weight_init="XavierUniform")
+        self.hidden1 = Dense(
+            HIDDEN_OUT + action_dim,
+            256,
+            activation="relu",
+            weight_init="XavierUniform")
+        self.hidden2 = Dense(256, 128, activation="relu",
+                             weight_init="XavierUniform")
+        self.out_h = Dense(
+            128,
+            HIDDEN_OUT,
+            activation="relu",
+            weight_init="XavierUniform")
+        self.out_r = Dense(
+            128,
+            reward_support_size,
+            activation="softmax",
+            weight_init="XavierUniform")
 
     def construct(self, x):
         hidden = self.hidden1(x)

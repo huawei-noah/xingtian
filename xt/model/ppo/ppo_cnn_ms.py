@@ -18,7 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from xt.model.model_utils_ms import ACTIVATION_MAP_MS, get_cnn_backbone_ms, get_cnn_default_settings_ms, get_default_filters_ms
+from xt.model.model_utils_ms import ACTIVATION_MAP_MS, get_cnn_backbone_ms,\
+    get_cnn_default_settings_ms, get_default_filters_ms
 from xt.model.ppo.default_config import CNN_SHARE_LAYERS
 from xt.model.ppo.ppo_ms import PPOMS
 from zeus.common.util.register import Registers
@@ -32,9 +33,12 @@ class PpoCnnMS(PPOMS):
     def __init__(self, model_info):
         model_config = model_info.get('model_config')
 
-        self.vf_share_layers = model_config.get('VF_SHARE_LAYERS', CNN_SHARE_LAYERS)
-        self.hidden_sizes = model_config.get('hidden_sizes', get_cnn_default_settings_ms('hidden_sizes'))
-        activation = model_config.get('activation', get_cnn_default_settings_ms('activation'))
+        self.vf_share_layers = model_config.get(
+            'VF_SHARE_LAYERS', CNN_SHARE_LAYERS)
+        self.hidden_sizes = model_config.get(
+            'hidden_sizes', get_cnn_default_settings_ms('hidden_sizes'))
+        activation = model_config.get(
+            'activation', get_cnn_default_settings_ms('activation'))
         try:
             self.activation = ACTIVATION_MAP_MS[activation]
         except KeyError:
@@ -44,7 +48,14 @@ class PpoCnnMS(PPOMS):
 
     def create_model(self, model_info):
         filter_arches = get_default_filters_ms(self.state_dim)
-        net = get_cnn_backbone_ms(self.state_dim, self.action_dim, self.hidden_sizes, self.activation, filter_arches,
-                            self.vf_share_layers, self.verbose, dtype=self.input_dtype)
+        net = get_cnn_backbone_ms(
+            self.state_dim,
+            self.action_dim,
+            self.hidden_sizes,
+            self.activation,
+            filter_arches,
+            self.vf_share_layers,
+            self.verbose,
+            dtype=self.input_dtype)
         self.actor_var = MSVariables(net)
         return net

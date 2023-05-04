@@ -1,9 +1,9 @@
 """Retain model utils."""
 
 import numpy as np
-from xt.model.tf_compat import K, Conv2D, Input, Lambda, Flatten, Model, Dense, Concatenate, tf
 
-from xt.model.ms_compat import ms, SequentialCell, Dense, Conv2d, Flatten, get_activation, Cell
+from xt.model.ms_compat import ms, SequentialCell, Dense, Conv2d, Flatten,\
+                                get_activation, Cell
 from mindspore._checkparam import twice
 
 ACTIVATION_MAP_MS = {
@@ -15,29 +15,33 @@ ACTIVATION_MAP_MS = {
     'leakyrelu': 'leakyrelu',
     'elu': 'elu',
     'selu': 'seLU',
-    # 'swish': tf.nn.swish,
-    'hswish': 'hswish', # FIXME: ms中没有swish，只有h-swish
+    'hswish': 'hswish',  # FIXME: ms中没有swish，只有h-swish
     'gelu': 'gelu'
 }
+
 
 def cal_shape(input_shape, kernel_size, stride):
     kernel_size = twice(kernel_size)
     stride = twice(stride)
     return tuple(
-        (v - kernel_size[i]) // stride[i] + 1 for i, v in enumerate(input_shape)
-    )
+        (v - kernel_size[i]) // stride[i] + 1 for i,
+        v in enumerate(input_shape))
 
 
 class MlpBackbone(Cell):
     def __init__(self, state_dim, act_dim, hidden_sizes, activation):
         super().__init__()
-        self.dense_layer_pi = bulid_mlp_layers_ms(state_dim[-1], hidden_sizes, activation)
-        self.dense_pi = Dense(hidden_sizes[-1], act_dim, weight_init="XavierUniform")
-        self.dense_layer_v = bulid_mlp_layers_ms(state_dim[-1], hidden_sizes, activation)
-        self.dense_out = Dense(hidden_sizes[-1], 1, weight_init="XavierUniform")
+        self.dense_layer_pi = bulid_mlp_layers_ms(
+            state_dim[-1], hidden_sizes, activation)
+        self.dense_pi = Dense(
+            hidden_sizes[-1], act_dim, weight_init="XavierUniform")
+        self.dense_layer_v = bulid_mlp_layers_ms(
+            state_dim[-1], hidden_sizes, activation)
+        self.dense_out = Dense(
+            hidden_sizes[-1], 1, weight_init="XavierUniform")
 
     def construct(self, x):
-        if(x.dtype==ms.float64):
+        if x.dtype == ms.float64:
             x = x.astype(ms.float32)
         pi_latent = self.dense_layer_pi(x)
         pi_latent = self.dense_pi(pi_latent)
@@ -53,11 +57,13 @@ class MlpBackboneShare(Cell):
         self.dense_layer_share = bulid_mlp_layers_ms(
             state_dim[-1], hidden_sizes, activation
         )
-        self.dense_pi = Dense(hidden_sizes[-1], act_dim, weight_init="XavierUniform")
-        self.dense_out = Dense(hidden_sizes[-1], 1, weight_init="XavierUniform")
+        self.dense_pi = Dense(
+            hidden_sizes[-1], act_dim, weight_init="XavierUniform")
+        self.dense_out = Dense(
+            hidden_sizes[-1], 1, weight_init="XavierUniform")
 
     def construct(self, x):
-        if(x.dtype==ms.float64):
+        if x.dtype == ms.float64:
             x = x.astype(ms.float32)
         share = self.dense_layer_share(x)
         pi_latent = self.dense_pi(share)
@@ -78,16 +84,20 @@ class CnnBackbone(Cell):
     ):
         super().__init__()
         self.dtype = dtype
-        self.conv_layer_pi = build_conv_layers_ms(state_dim[-1], filter_arches, activation)
+        self.conv_layer_pi = build_conv_layers_ms(
+            state_dim[-1], filter_arches, activation)
         self.flatten_layer = Flatten()
         height, width = state_dim[-3], state_dim[-2]
         filters = 1
         for filters, kernel_size, strides in filter_arches:
             height, width = cal_shape((height, width), kernel_size, strides)
         dim = height * width * filters
-        self.dense_layer_pi = bulid_mlp_layers_ms(dim, hidden_sizes, activation)
-        self.dense_pi = Dense(hidden_sizes[-1], act_dim, weight_init="XavierUniform")
-        self.conv_layer_v = build_conv_layers_ms(state_dim[-1], filter_arches, activation)
+        self.dense_layer_pi = bulid_mlp_layers_ms(
+            dim, hidden_sizes, activation)
+        self.dense_pi = Dense(
+            hidden_sizes[-1], act_dim, weight_init="XavierUniform")
+        self.conv_layer_v = build_conv_layers_ms(
+            state_dim[-1], filter_arches, activation)
         self.dense_layer_v = bulid_mlp_layers_ms(dim, hidden_sizes, activation)
         self.dense_v = Dense(hidden_sizes[-1], 1, weight_init="XavierUniform")
 
@@ -128,9 +138,12 @@ class CnnBackboneShare(Cell):
         for filters, kernel_size, strides in filter_arches:
             height, width = cal_shape((height, width), kernel_size, strides)
         dim = height * width * filters
-        self.dense_layer_share = bulid_mlp_layers_ms(dim, hidden_sizes, activation)
-        self.dense_pi = Dense(hidden_sizes[-1], act_dim, weight_init="XavierUniform")
+        self.dense_layer_share = bulid_mlp_layers_ms(
+            dim, hidden_sizes, activation)
+        self.dense_pi = Dense(
+            hidden_sizes[-1], act_dim, weight_init="XavierUniform")
         self.dense_v = Dense(hidden_sizes[-1], 1, weight_init="XavierUniform")
+
     def construct(self, x):
         x = x.transpose((0, 3, 1, 2))
         if self.dtype == "uint8":
@@ -178,7 +191,8 @@ def get_cnn_backbone_ms(
     """Get CNN backbone."""
     if dtype != "uint8" and dtype != "float32":
         raise ValueError(
-            'dtype: {} not supported automatically, please implement it yourself'.format(
+            'dtype: {} not supported automatically, \
+                please implement it yourself'.format(
                 dtype
             )
         )
@@ -259,11 +273,15 @@ def get_default_filters_ms(shape):
     """Get default model set for atari environments."""
     shape = list(shape)
     if len(shape) != 3:
-        raise ValueError('Without default architecture for obs shape {}'.format(shape))
+        raise ValueError(
+            'Without default architecture for obs shape {}'.format(shape))
     # (out_size, kernel, stride)
-    filters_84x84 = [[32, (8, 8), (4, 4)], [32, (4, 4), (2, 2)], [64, (3, 3), (1, 1)]]
-    filters_42x42 = [[32, (4, 4), (2, 2)], [32, (4, 4), (2, 2)], [64, (3, 3), (1, 1)]]
-    filters_15x15 = [[32, (5, 5), (1, 1)], [64, (3, 3), (1, 1)], [64, (3, 3), (1, 1)]]
+    filters_84x84 = [[32, (8, 8), (4, 4)], [32, (4, 4), (2, 2)], [
+        64, (3, 3), (1, 1)]]
+    filters_42x42 = [[32, (4, 4), (2, 2)], [32, (4, 4), (2, 2)], [
+        64, (3, 3), (1, 1)]]
+    filters_15x15 = [[32, (5, 5), (1, 1)], [64, (3, 3), (1, 1)], [
+        64, (3, 3), (1, 1)]]
     if shape[:2] == [84, 84]:
         return filters_84x84
     elif shape[:2] == [42, 42]:
@@ -282,7 +300,8 @@ def get_default_filters_ms(shape):
             filter_h, stride_h, flat_flag_h = _infer_stride_and_kernel_ms(
                 input_h, flat_flag_h
             )
-            filters.append((num_filters, (filter_w, filter_h), (stride_w, stride_h)))
+            filters.append(
+                (num_filters, (filter_w, filter_h), (stride_w, stride_h)))
             num_filters *= 2
             input_w = input_w // stride_w
             input_h = input_h // stride_h
@@ -303,36 +322,7 @@ def _infer_stride_and_kernel_ms(size, flat_flag):
         return 2 * stride + 1, stride, False
 
 
-def _infer_same_padding_size_ms(old_size, stride):
-    new_size = old_size // stride
-    if new_size * stride == old_size:
-        return new_size
-    else:
-        return new_size + 1
-
-
 def layer_function_ms(x):
     """Normalize data."""
     return x.astype(ms.float32) / 255.0
 
-
-def state_transform_ms(x, mean=1e-5, std=255., input_dtype="float32"):
-    """Normalize data."""
-    if input_dtype in ("float32", "float", "float64"):
-        return x
-
-    # only cast non-float32 state
-    if np.abs(mean) < 1e-4:
-        return tf.cast(x, dtype='float32') / std
-    else:
-        return (tf.cast(x, dtype="float32") - mean) / std
-
-
-def custom_norm_initializer_ms(std=0.5):
-    """Perform Customize norm initializer for op."""
-    def _initializer(shape, dtype=None, partition_info=None):
-        out = np.random.randn(*shape).astype(np.float32)
-        out *= std / np.sqrt(np.square(out).sum(axis=0, keepdims=True))
-        return tf.constant(out)
-
-    return _initializer

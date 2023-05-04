@@ -20,6 +20,7 @@
 
 import sys
 
+
 def import_ms_compact():
     """Import mindspore with compact behavior."""
     if "mindspore" not in sys.modules:
@@ -31,6 +32,7 @@ def import_ms_compact():
         return ms
     else:
         return sys.modules["mindspore"]
+
 
 ms = import_ms_compact()
 
@@ -46,6 +48,7 @@ if ms.__version__ in ("1.9.0"):
     from mindspore import Model, Tensor
     from mindspore.ops import Cast, MultitypeFuncGraph, ReduceSum, ReduceMax, ReduceMin, ReduceMean, Reciprocal
     from mindspore import History
+
 
 def loss_to_val(loss):
     """Make keras instance into value."""

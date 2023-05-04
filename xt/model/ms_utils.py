@@ -17,7 +17,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Create tf utils for assign weights between learner and actor and model utils for universal usage."""
+"""Create tf utils for assign weights between learner and actor\
+    and model utils for universal usage."""
 
 import numpy as np
 from mindspore import nn
@@ -31,19 +32,24 @@ class MSVariables:
         self.net = net
 
     def get_weights(self) -> OrderedDict:
-        _weights = OrderedDict((par_name, par.data.asnumpy()) for par_name, par in self.net.parameters_and_names())
+        _weights = OrderedDict((par_name, par.data.asnumpy())
+                               for par_name, par in
+                               self.net.parameters_and_names())
         return _weights
 
     def save_weights(self, save_name: str):
-        _weights = OrderedDict((par_name, par.data.asnumpy()) for par_name, par in self.net.parameters_and_names())
+        _weights = OrderedDict((par_name, par.data.asnumpy())
+                               for par_name, par in
+                               self.net.parameters_and_names())
         np.savez(save_name, **_weights)
 
     def set_weights(self, to_weights):
         for _, param in self.net.parameters_and_names():
             if param.name in to_weights:
-                new_param_data = ms.Tensor(copy.deepcopy(to_weights[param.name]))
+                new_param_data = ms.Tensor(
+                    copy.deepcopy(to_weights[param.name]))
                 param.set_data(new_param_data, param.sliced)
-
+        return
     def read_weights(weight_file: str):
         """Read weights with numpy.npz"""
         np_file = np.load(weight_file)

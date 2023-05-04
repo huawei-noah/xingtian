@@ -23,9 +23,7 @@ import os
 import glob
 import mindspore as ms
 from xt.model.model import XTModel
-from xt.model.ms_utils import MSVariables
 
-os.environ["KERAS_BACKEND"] = "mindspore"
 
 
 class XTModel_MS(XTModel):
@@ -85,7 +83,10 @@ class XTModel_MS(XTModel):
 
 def check_keep_model(model_path, keep_num):
     """Check model saved count under path."""
-    target_file = glob.glob(os.path.join(model_path, "actor*".format(model_path)))
+    target_file = glob.glob(
+        os.path.join(
+            model_path,
+            "actor*".format(model_path)))
     if len(target_file) > keep_num:
         to_rm_model = sorted(target_file, reverse=True)[keep_num:]
         for item in to_rm_model:

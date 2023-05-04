@@ -1,8 +1,8 @@
 """Action distribution with mindspore"""
 import numpy as np
-from xt.model.ms_compat import ms, Cast, ReduceSum, ReduceMax, SoftmaxCrossEntropyWithLogits, Tensor
+from xt.model.ms_compat import ms, Cast, ReduceSum, ReduceMax, Tensor
 from mindspore import ops
-from mindspore import Parameter, ms_function, ms_class
+from mindspore import ms_class
 
 
 @ms_class
@@ -72,39 +72,41 @@ class DiagGaussianDist(ActionDist):
     def sample_dtype(self):
         return ms.float32
 
-    def log_prob(self, x, mean, sd = None):
+    def log_prob(self, x, mean, sd=None):
         if sd is not None:
             log_sd = self.log(sd)
             neglog_prob = 0.5 * self.log(2.0 * np.pi) * self.cast((self.shape(x)[-1]), ms.float32) + \
-            0.5 * self.reduce_sum(self.square((x - mean) / sd), axis=-1) + \
-            self.reduce_sum(log_sd, axis=-1)
+                0.5 * self.reduce_sum(self.square((x - mean) / sd), axis=-1) + \
+                self.reduce_sum(log_sd, axis=-1)
         else:
-            neglog_prob = 0.5 * self.log(2.0 * np.pi) * self.cast((self.shape(x)[-1]), ms.float32) + \
-            0.5 * self.reduce_sum(self.square((x - mean) / sd), axis=-1)
+            neglog_prob = 0.5 * self.log(2.0 * np.pi) * self.cast((self.shape(
+                x)[-1]), ms.float32) + 0.5 * self.reduce_sum(self.square((x - mean) / sd), axis=-1)
         return -neglog_prob
 
     def mode(self):
         return self.mean
 
-    def entropy(self, mean, sd = None):
+    def entropy(self, mean, sd=None):
         if sd is not None:
             log_sd = self.log(sd)
-            return self.reduce_sum(log_sd + 0.5 * (self.log(2.0 * np.pi) + 1.0), axis=-1)
+            return self.reduce_sum(
+                log_sd + 0.5 * (self.log(2.0 * np.pi) + 1.0), axis=-1)
         return 0.5 * (self.log(2.0 * np.pi) + 1.0)
 
     def kl(self, other):
         assert isinstance(
             other, DiagGaussianDist), 'Distribution type not match.'
         reduce_sum = ReduceSum(keep_dims=True)
-        return reduce_sum(
-            (ops.square(self.std) + ops.square(self.mean - other.mean)) / (2.0 * ops.square(other.std)) +
-            other.log_std - self.log_std - 0.5,
-            axis=-1)
+        return reduce_sum((self.square(self.std) +
+                           self.square(self.mean - other.mean)) /
+                          (2.0 * self.square(other.std)) +
+                          other.log_std - self.log_std - 0.5, axis=-1)
 
-    def sample(self, mean, sd = None):
+    def sample(self, mean, sd=None):
         if sd is not None:
             return mean + sd * self.normal(self.shape(mean), dtype=ms.float32)
         return mean + self.normal(self.shape(mean), dtype=ms.float32)
+
 
 class CategoricalDist(ActionDist):
 
@@ -151,13 +153,16 @@ class CategoricalDist(ActionDist):
         rescaled_logits_self = self.logits - reduce_max(self.logits, axis=-1)
         rescaled_logits_other = other.logits - \
             reduce_max(other.logits, axis=-1)
-        exp_logits_self = ops.exp(rescaled_logits_self)
-        exp_logits_other = ops.exp(rescaled_logits_other)
+        exp_logits_self = self.exp(rescaled_logits_self)
+        exp_logits_other = self.exp(rescaled_logits_other)
         z_self = reduce_sum(exp_logits_self, axis=-1)
         z_other = reduce_sum(exp_logits_other, axis=-1)
         p = exp_logits_self / z_self
-        return reduce_sum(p * (rescaled_logits_self - ops.log(z_self) - rescaled_logits_other + ops.log(z_other)),
-                          axis=-1)
+        return reduce_sum(p *
+                          (rescaled_logits_self -
+                           self.log(z_self) -
+                              rescaled_logits_other +
+                              self.log(z_other)), axis=-1)
 
     def sample(self, logits):
         return self.random_categorical(logits, 1, 0).squeeze(-1)

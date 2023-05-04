@@ -1,18 +1,17 @@
 import numpy as np
-from xt.model.ppo.default_config import \
-    LR, BATCH_SIZE, CRITIC_LOSS_COEF, ENTROPY_LOSS, LOSS_CLIPPING, MAX_GRAD_NORM, NUM_SGD_ITER, SUMMARY, VF_CLIP
+from xt.model.ppo.default_config import LR, BATCH_SIZE, CRITIC_LOSS_COEF,\
+    ENTROPY_LOSS, LOSS_CLIPPING, MAX_GRAD_NORM, NUM_SGD_ITER, SUMMARY, VF_CLIP
 from xt.model.ms_dist import make_dist
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
-from xt.model.ms_compat import ReduceMean, Tensor, Adam,Model
+from xt.model.ms_compat import ReduceMean, ReduceSum, Tensor, Adam
 from xt.model.model_ms import XTModel_MS
 from xt.model.ms_utils import MSVariables
 
-from mindspore.ops import Depend, value_and_grad, clip_by_global_norm, Log, ReduceSum, Minimum, Maximum, Exp, Square, clip_by_value
+from mindspore.ops import Depend, value_and_grad, clip_by_global_norm,\
+     Minimum, Maximum, Exp, Square, clip_by_value
 from mindspore.nn import Cell, TrainOneStepCell, LossBase
-from mindspore import set_context
-import mindspore as ms
-set_context(mode=ms.GRAPH_MODE)
+
 
 @Registers.model
 class PPOMS(XTModel_MS):
@@ -22,6 +21,7 @@ class PPOMS(XTModel_MS):
             super(PPOMS.PPOPredictPolicy, self).__init__()
             self.network = net
             self.dist = dist
+
         def construct(self, state):
             pi_latent, v_out = self.network(state)
             action = self.dist.sample(pi_latent)
@@ -57,11 +57,11 @@ class PPOMS(XTModel_MS):
         loss_fn = WithLossCell(self.critic_loss_coef,
                                self.clip_ratio, self.ent_coef, self.vf_clip)
         forward_fn = NetWithLoss(
-            self.model, loss_fn, self.dist, self.action_type)
+            self.model, loss_fn, self.dist)
         self.train_net = MyTrainOneStepCell(
             forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
         self.train_net.set_train()
-        
+
     def predict(self, state):
         """Predict state."""
         state = Tensor.from_numpy(state)
@@ -111,14 +111,11 @@ class MyTrainOneStepCell(TrainOneStepCell):
 
 
 class NetWithLoss(Cell):
-    def __init__(self, net, loss_fn, dist, action_type):
+    def __init__(self, net, loss_fn, dist):
         super(NetWithLoss, self).__init__(auto_prefix=False)
         self.net = net
         self._loss_fn = loss_fn
-        self.action_type = action_type
         self.dist = dist
-        self.log = Log()
-        self.reduce_sum = ReduceSum(keep_dims=True)
 
     def construct(self, state_ph, adv_ph, old_logp_ph, behavior_action, target_v, old_v_ph):
         pi_latent, v_out = self.net(state_ph)
@@ -142,7 +139,7 @@ class WithLossCell(LossBase):
         self.exp = Exp()
         self.square = Square()
 
-    def construct(self, action_log_prob, ent,  adv, old_log_p,  target_v, out_v, old_v):
+    def construct(self, action_log_prob, ent, adv, old_log_p, target_v, out_v, old_v):
         ratio = self.exp(action_log_prob - old_log_p)
 
         surr_loss_1 = ratio * adv

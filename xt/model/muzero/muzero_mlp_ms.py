@@ -6,6 +6,8 @@ from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
 
 # pylint: disable=W0201
+
+
 @Registers.model
 class MuzeroMlpMS(MuzeroModelMS):
     """Docstring for ActorNetwork."""
@@ -26,12 +28,18 @@ class MuzeroMlpMS(MuzeroModelMS):
         return DynNet(self.action_dim, self.reward_support_size)
 
 
-
 class RepNet(nn.Cell):
     def __init__(self, state_dim):
         super().__init__()
-        self.hidden = Dense(state_dim[-1], HIDDEN1_UNITS, activation="relu", weight_init="XavierUniform")
-        self.out_rep = Dense(HIDDEN1_UNITS, HIDDEN2_UNITS, activation="relu", weight_init="XavierUniform")
+        self.hidden = Dense(state_dim[-1],
+                            HIDDEN1_UNITS,
+                            activation="relu",
+                            weight_init="XavierUniform")
+        self.out_rep = Dense(
+            HIDDEN1_UNITS,
+            HIDDEN2_UNITS,
+            activation="relu",
+            weight_init="XavierUniform")
 
     def construct(self, x):
         out = self.hidden(x)
@@ -42,9 +50,21 @@ class RepNet(nn.Cell):
 class PolicyNet(nn.Cell):
     def __init__(self, value_support_size, action_dim):
         super().__init__()
-        self.hidden = Dense(HIDDEN2_UNITS, HIDDEN1_UNITS, activation="relu", weight_init="XavierUniform")
-        self.out_v = Dense(HIDDEN1_UNITS, value_support_size, activation="softmax", weight_init="XavierUniform")
-        self.out_p = Dense(HIDDEN1_UNITS, action_dim, activation="softmax", weight_init="XavierUniform")
+        self.hidden = Dense(
+            HIDDEN2_UNITS,
+            HIDDEN1_UNITS,
+            activation="relu",
+            weight_init="XavierUniform")
+        self.out_v = Dense(
+            HIDDEN1_UNITS,
+            value_support_size,
+            activation="softmax",
+            weight_init="XavierUniform")
+        self.out_p = Dense(
+            HIDDEN1_UNITS,
+            action_dim,
+            activation="softmax",
+            weight_init="XavierUniform")
 
     def construct(self, x):
         hidden = self.hidden(x)
@@ -56,9 +76,21 @@ class PolicyNet(nn.Cell):
 class DynNet(nn.Cell):
     def __init__(self, action_dim, reward_support_size):
         super().__init__()
-        self.hidden = Dense(HIDDEN2_UNITS + action_dim, HIDDEN1_UNITS, activation="relu", weight_init="XavierUniform")
-        self.out_h = Dense(HIDDEN1_UNITS, HIDDEN2_UNITS, activation="relu", weight_init="XavierUniform")
-        self.out_r = Dense(HIDDEN1_UNITS, reward_support_size, activation="softmax", weight_init="XavierUniform")
+        self.hidden = Dense(
+            HIDDEN2_UNITS + action_dim,
+            HIDDEN1_UNITS,
+            activation="relu",
+            weight_init="XavierUniform")
+        self.out_h = Dense(
+            HIDDEN1_UNITS,
+            HIDDEN2_UNITS,
+            activation="relu",
+            weight_init="XavierUniform")
+        self.out_r = Dense(
+            HIDDEN1_UNITS,
+            reward_support_size,
+            activation="softmax",
+            weight_init="XavierUniform")
 
     def construct(self, x):
         hidden = self.hidden(x)

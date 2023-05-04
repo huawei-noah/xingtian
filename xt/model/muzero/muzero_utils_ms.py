@@ -2,9 +2,11 @@ import numpy as np
 from mindspore import ops
 from xt.model.ms_compat import ReduceMax, ReduceMin, ReduceMean
 
+
 def scale_gradient_ms(tensor, scale):
     """Scales the gradient for the backward pass."""
     return tensor * scale + ops.stop_gradient(tensor) * (1 - scale)
+
 
 def hidden_normlize_ms(hidden):
     reduce_max = ReduceMax(keep_dims=True)
@@ -28,5 +30,8 @@ def value_compression_ms(value):
 
 def value_decompression_ms(value):
     return np.sign(value) * (
-        ((np.sqrt(1 + 4 * 0.001 * (np.abs(value) + 1 + 0.001)) - 1) / (2 * 0.001)) ** 2 - 1
+        (
+            (np.sqrt(1 + 4 * 0.001 * (np.abs(value) + 1 + 0.001)) - 1)
+            / (2 * 0.001)
+        ) ** 2 - 1
     )
