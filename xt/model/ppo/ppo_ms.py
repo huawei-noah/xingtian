@@ -50,8 +50,7 @@ class PPOMS(XTModel_MS):
         self.predict_net = self.PPOPredictPolicy(self.model, self.dist)
         adam = Adam(params=self.predict_net.trainable_params(), learning_rate=0.0005)
         loss_fn = WithLossCell(self.critic_loss_coef, self.clip_ratio, self.ent_coef, self.vf_clip)
-        forward_fn = NetWithLoss(
-            self.model, loss_fn, self.dist)
+        forward_fn = NetWithLoss(self.model, loss_fn, self.dist)
         self.train_net = MyTrainOneStepCell(forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
         self.train_net.set_train()
 
@@ -140,11 +139,9 @@ class WithLossCell(LossBase):
         actor_loss = -surr_loss - self.ent_coef * ent
 
         vf_losses1 = self.square(out_v - target_v)
-        val_pred_clipped = old_v + \
-            clip_by_value(out_v - old_v, -self.val_clip, self.val_clip)
+        val_pred_clipped = old_v + clip_by_value(out_v - old_v, -self.val_clip, self.val_clip)
         vf_losses2 = self.square(val_pred_clipped - target_v)
 
-        critic_loss = 0.5 * \
-            self.reduce_mean(self.maximum(vf_losses1, vf_losses2))
+        critic_loss = 0.5 * self.reduce_mean(self.maximum(vf_losses1, vf_losses2))
         loss = actor_loss + self.critic_loss_coef * critic_loss
         return loss

@@ -35,7 +35,6 @@ model_para:
 
 
 env_num: 1
-speedup: False
 
 benchmark:
   log_interval_to_train: 5
