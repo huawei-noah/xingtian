@@ -48,7 +48,7 @@ class PPOMS(XTModel_MS):
 
         super().__init__(model_info)
         self.predict_net = self.PPOPredictPolicy(self.model, self.dist)
-        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=0.0005)
+        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=self._lr, use_amsgrad=False, use_locking=True)
         loss_fn = WithLossCell(self.critic_loss_coef, self.clip_ratio, self.ent_coef, self.vf_clip)
         forward_fn = NetWithLoss(self.model, loss_fn, self.dist)
         self.train_net = MyTrainOneStepCell(forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
