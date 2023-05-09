@@ -34,7 +34,7 @@ model_para:
       hidden_sizes: [256]
 
 env_num: 10
-
+speedup: False
 
 benchmark:
   log_interval_to_train: 10

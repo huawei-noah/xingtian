@@ -4,13 +4,10 @@ from xt.model.ppo.default_config import LR, BATCH_SIZE, CRITIC_LOSS_COEF,\
 from xt.model.ms_dist import make_dist
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
-from xt.model.ms_compat import ReduceMean, ReduceSum, Tensor, Adam
+from xt.model.ms_compat import Cell, TrainOneStepCell, LossBase, ReduceMean, ReduceSum, Tensor, Adam
+from xt.model.ms_compat import Depend, value_and_grad, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value
 from xt.model.model_ms import XTModel_MS
 from xt.model.ms_utils import MSVariables
-
-from mindspore.ops import Depend, value_and_grad, clip_by_global_norm,\
-     Minimum, Maximum, Exp, Square, clip_by_value
-from mindspore.nn import Cell, TrainOneStepCell, LossBase
 
 
 @Registers.model
@@ -50,16 +47,12 @@ class PPOMS(XTModel_MS):
         self.dist = make_dist(self.action_type, self.action_dim)
 
         super().__init__(model_info)
-        self.predict_net = self.PPOPredictPolicy(
-            self.model, self.dist)
-        adam = Adam(params=self.predict_net.trainable_params(),
-                    learning_rate=0.0005)
-        loss_fn = WithLossCell(self.critic_loss_coef,
-                               self.clip_ratio, self.ent_coef, self.vf_clip)
+        self.predict_net = self.PPOPredictPolicy(self.model, self.dist)
+        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=0.0005)
+        loss_fn = WithLossCell(self.critic_loss_coef, self.clip_ratio, self.ent_coef, self.vf_clip)
         forward_fn = NetWithLoss(
             self.model, loss_fn, self.dist)
-        self.train_net = MyTrainOneStepCell(
-            forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
+        self.train_net = MyTrainOneStepCell(forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
         self.train_net.set_train()
 
     def predict(self, state):
@@ -86,8 +79,7 @@ class PPOMS(XTModel_MS):
                 adv_ph = Tensor.from_numpy(label[2][mbinds])
                 old_v_ph = Tensor.from_numpy(label[3][mbinds])
                 target_v_ph = Tensor.from_numpy(label[4][mbinds])
-                loss = self.train_net(
-                    state_ph, adv_ph, old_logp_ph, behavior_action_ph, target_v_ph, old_v_ph).asnumpy()
+                loss = self.train_net(state_ph, adv_ph, old_logp_ph, behavior_action_ph, target_v_ph, old_v_ph).asnumpy()
                 loss_val.append(np.mean(loss))
         self.actor_var = MSVariables(self.predict_net)
         return np.mean(loss_val)
@@ -99,8 +91,7 @@ class MyTrainOneStepCell(TrainOneStepCell):
         self.sens = sens
         self.depend = Depend()
         self.max_grad_norm = max_grad_norm
-        self.grad_fn = value_and_grad(
-            self.network, grad_position=None, weights=self.weights)
+        self.grad_fn = value_and_grad(self.network, grad_position=None, weights=self.weights)
 
     def construct(self, *inputs):
         loss, grads = self.grad_fn(*inputs)
@@ -121,8 +112,7 @@ class NetWithLoss(Cell):
         pi_latent, v_out = self.net(state_ph)
         ent = self.dist.entropy(pi_latent)
         action_log_prob = self.dist.log_prob(behavior_action, pi_latent)
-        loss = self._loss_fn(action_log_prob, ent, adv_ph,
-                             old_logp_ph, target_v, v_out, old_v_ph)
+        loss = self._loss_fn(action_log_prob, ent, adv_ph, old_logp_ph, target_v, v_out, old_v_ph)
         return loss
 
 
@@ -143,8 +133,7 @@ class WithLossCell(LossBase):
         ratio = self.exp(action_log_prob - old_log_p)
 
         surr_loss_1 = ratio * adv
-        surr_loss_2 = clip_by_value(
-            ratio, 1.0 - self.clip_ratio, 1.0 + self.clip_ratio) * adv
+        surr_loss_2 = clip_by_value(ratio, 1.0 - self.clip_ratio, 1.0 + self.clip_ratio) * adv
         surr_loss = self.reduce_mean(self.minimum(surr_loss_1, surr_loss_2))
         ent = self.reduce_mean(ent)
 

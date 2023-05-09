@@ -21,7 +21,7 @@ from xt.model.dqn.default_config import HIDDEN_SIZE, NUM_LAYERS, LR
 from xt.model.model_ms import XTModel_MS
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
-from xt.model.ms_compat import Dense, Adam, MSELoss, Cell, Model, DynamicLossScaleUpdateCell, ms
+from xt.model.ms_compat import Dense, Adam, DynamicLossScaleUpdateCell, MSELoss, Cell, Model, ms
 import mindspore.ops as ops
 from xt.model.ms_utils import MSVariables
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
@@ -45,7 +45,6 @@ class DqnMlpMS(XTModel_MS):
         """Create Deep-Q CNN network."""
         loss_fn = MSELoss()
         adam = Adam(params=self.net.trainable_params(), learning_rate=self.learning_rate)
-        # model = Model(self.net, loss_fn=loss, optimizer=adam)
         loss_net = ms.nn.WithLossCell(self.net, loss_fn)
         device_target = ms.get_context("device_target")
         if device_target == 'Ascend':
@@ -59,16 +58,6 @@ class DqnMlpMS(XTModel_MS):
     def predict(self, state):
         state = ms.Tensor(state, dtype=ms.float32)
         return self.net(state).asnumpy()
-
-
-def layer_normalize(x):
-    """Normalize data."""
-    return ops.sub(x, ops.ReduceMean(x, axis=1, keep_dims=True))
-
-
-def layer_add(x):
-    """Compute Q given Advantage and V."""
-    return x[0] + x[1]
 
 
 class DqnMlpNet(Cell):

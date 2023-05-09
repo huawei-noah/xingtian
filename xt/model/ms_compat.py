@@ -44,9 +44,10 @@ if ms.__version__ in ("1.9.0"):
     from mindspore.nn import MSELoss
     from mindspore.train import Model
     from mindspore.nn import WithLossCell, TrainOneStepCell, SoftmaxCrossEntropyWithLogits, SequentialCell
-    from mindspore.nn import Cell, WithLossCell, DynamicLossScaleUpdateCell, get_activation
+    from mindspore.nn import Cell, WithLossCell, DynamicLossScaleUpdateCell, get_activation, LossBase
     from mindspore import Model, Tensor
     from mindspore.ops import Cast, MultitypeFuncGraph, ReduceSum, ReduceMax, ReduceMin, ReduceMean, Reciprocal
+    from mindspore.ops import Depend, value_and_grad, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value
     from mindspore import History
 
 

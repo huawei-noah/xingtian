@@ -15,7 +15,7 @@ ACTIVATION_MAP_MS = {
     'leakyrelu': 'leakyrelu',
     'elu': 'elu',
     'selu': 'seLU',
-    'hswish': 'hswish',  # FIXME: ms中没有swish，只有h-swish
+    'hswish': 'hswish',
     'gelu': 'gelu'
 }
 
@@ -275,7 +275,6 @@ def get_default_filters_ms(shape):
     if len(shape) != 3:
         raise ValueError(
             'Without default architecture for obs shape {}'.format(shape))
-    # (out_size, kernel, stride)
     filters_84x84 = [[32, (8, 8), (4, 4)], [32, (4, 4), (2, 2)], [
         64, (3, 3), (1, 1)]]
     filters_42x42 = [[32, (4, 4), (2, 2)], [32, (4, 4), (2, 2)], [
