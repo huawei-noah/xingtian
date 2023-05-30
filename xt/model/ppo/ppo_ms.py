@@ -25,12 +25,13 @@ from xt.model.ms_dist import make_dist
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
 from xt.model.ms_compat import Cell, TrainOneStepCell, LossBase, ReduceMean, ReduceSum, Tensor, Adam
-from xt.model.ms_compat import Depend, value_and_grad, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value, DynamicLossScaleUpdateCell,FixedLossScaleUpdateCell
+from xt.model.ms_compat import Depend, value_and_grad, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value, DynamicLossScaleUpdateCell, FixedLossScaleUpdateCell
 from xt.model.model_ms import XTModel_MS
 from xt.model.ms_utils import MSVariables
 import mindspore as ms
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
 
+ms.set_context(runtime_num_threads=30)
 @Registers.model
 class PPOMS(XTModel_MS):
 

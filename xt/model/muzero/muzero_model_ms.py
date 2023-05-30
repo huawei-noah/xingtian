@@ -27,7 +27,7 @@ import numpy as np
 from collections import OrderedDict
 from typing import List
 from mindspore import nn, ops, ParameterTuple
-from xt.model.ms_compat import ms, Tensor, Adam, Cell, TrainOneStepCell，FixedLossScaleUpdateCell
+from xt.model.ms_compat import ms, Tensor, Adam, Cell, TrainOneStepCell, FixedLossScaleUpdateCell
 from xt.model.model_ms import XTModel_MS, check_keep_model
 from xt.model.muzero.default_config import LR, td_step
 from xt.model.muzero.muzero_utils_ms import value_compression_ms,\
@@ -265,7 +265,7 @@ class MuzeroModelMS(XTModel_MS):
 
 class myTrainOneStepCell(TrainOneStepCell):
     def __init__(self, network, optimizer):
-        super(MyTrainOneStepCell, self).__init__(network, optimizer)
+        super(myTrainOneStepCell, self).__init__(network, optimizer)
         self.depend = ops.Depend()
         self.network = network
         self.grad_fn = ops.value_and_grad(
