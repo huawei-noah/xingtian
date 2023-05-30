@@ -1,3 +1,23 @@
+# Copyright (C) 2020. Huawei Technologies Co., Ltd. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
 import numpy as np
 from xt.model.ppo.default_config import LR, BATCH_SIZE, CRITIC_LOSS_COEF,\
     ENTROPY_LOSS, LOSS_CLIPPING, MAX_GRAD_NORM, NUM_SGD_ITER, SUMMARY, VF_CLIP
@@ -5,10 +25,11 @@ from xt.model.ms_dist import make_dist
 from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
 from xt.model.ms_compat import Cell, TrainOneStepCell, LossBase, ReduceMean, ReduceSum, Tensor, Adam
-from xt.model.ms_compat import Depend, value_and_grad, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value
+from xt.model.ms_compat import Depend, value_and_grad, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value, DynamicLossScaleUpdateCell,FixedLossScaleUpdateCell
 from xt.model.model_ms import XTModel_MS
 from xt.model.ms_utils import MSVariables
-
+import mindspore as ms
+from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
 
 @Registers.model
 class PPOMS(XTModel_MS):
@@ -48,11 +69,18 @@ class PPOMS(XTModel_MS):
 
         super().__init__(model_info)
         self.predict_net = self.PPOPredictPolicy(self.model, self.dist)
-        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=self._lr, use_amsgrad=False, use_locking=True)
+        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=self._lr, use_amsgrad=True, use_locking=True)
         loss_fn = WithLossCell(self.critic_loss_coef, self.clip_ratio, self.ent_coef, self.vf_clip)
         forward_fn = NetWithLoss(self.model, loss_fn, self.dist)
-        self.train_net = MyTrainOneStepCell(forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
-        self.train_net.set_train()
+        device_target = ms.get_context("device_target")
+        if device_target == 'Ascend':
+            manager = FixedLossScaleUpdateCell(loss_scale_value=2**14)
+            self.train_net = MyTrainOneStepCell(forward_fn, adam, manager, grad_clip=True, clipnorm=self._max_grad_norm)
+        elif device_target == "GPU" or device_target == "CPU":
+            self.train_net = myTrainOneStepCell(forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
+        else:
+            raise Exception("Target error, GPU or Ascend is supported.")
+        self.predict_net.compile(ms.Tensor(np.zeros((1, 84, 84, 4))).astype(ms.float32))
 
     def predict(self, state):
         """Predict state."""
@@ -75,18 +103,19 @@ class PPOMS(XTModel_MS):
                 state_ph = Tensor.from_numpy(state[0][mbinds])
                 behavior_action_ph = Tensor.from_numpy(label[0][mbinds])
                 old_logp_ph = Tensor.from_numpy(label[1][mbinds])
-                adv_ph = Tensor.from_numpy(label[2][mbinds])
+                adv_ph = Tensor.from_numpy(label[2][mbinds]).astype(ms.float32)
                 old_v_ph = Tensor.from_numpy(label[3][mbinds])
-                target_v_ph = Tensor.from_numpy(label[4][mbinds])
-                loss = self.train_net(state_ph, adv_ph, old_logp_ph, behavior_action_ph, target_v_ph, old_v_ph).asnumpy()
+                target_v_ph = Tensor.from_numpy(label[4][mbinds]).astype(ms.float32)
+                loss = self.train_net(state_ph, adv_ph, old_logp_ph, behavior_action_ph, target_v_ph, old_v_ph)
+                loss = loss.asnumpy()
                 loss_val.append(np.mean(loss))
         self.actor_var = MSVariables(self.predict_net)
         return np.mean(loss_val)
 
 
-class MyTrainOneStepCell(TrainOneStepCell):
+class myTrainOneStepCell(TrainOneStepCell):
     def __init__(self, network, optimizer, max_grad_norm, sens=1.0):
-        super(MyTrainOneStepCell, self).__init__(network, optimizer, sens)
+        super(myTrainOneStepCell, self).__init__(network, optimizer, sens)
         self.sens = sens
         self.depend = Depend()
         self.max_grad_norm = max_grad_norm

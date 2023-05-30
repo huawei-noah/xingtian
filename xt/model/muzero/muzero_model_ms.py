@@ -1,3 +1,23 @@
+# Copyright (C) 2020. Huawei Technologies Co., Ltd. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
 import os
 import copy
 import typing
@@ -7,7 +27,7 @@ import numpy as np
 from collections import OrderedDict
 from typing import List
 from mindspore import nn, ops, ParameterTuple
-from xt.model.ms_compat import ms, Tensor, Adam, Cell, TrainOneStepCell
+from xt.model.ms_compat import ms, Tensor, Adam, Cell, TrainOneStepCell，FixedLossScaleUpdateCell
 from xt.model.model_ms import XTModel_MS, check_keep_model
 from xt.model.muzero.default_config import LR, td_step
 from xt.model.muzero.muzero_utils_ms import value_compression_ms,\
@@ -16,7 +36,7 @@ from zeus.common.util.common import import_config
 from xt.model.pb_format import pb_model
 from zeus.common.util.register import Registers
 from mindspore import set_context
-
+from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
 set_context(runtime_num_threads=3)
 
 # pylint: disable=W0201
@@ -83,8 +103,17 @@ class MuzeroModelMS(XTModel_MS):
             self.model.rnet, self.model.pnet)
         self.recur_infer_net = self.RecurInferNet(
             self.model.dnet, self.model.pnet)
-        self.train_net = MyTrainOneStepCell(self.net_with_loss, self.adam)
+        device_target = ms.get_context("device_target")
+        if device_target == 'Ascend':
+            manager = FixedLossScaleUpdateCell(loss_scale_value=2**14)
+            self.train_net = MyTrainOneStepCell(self.net_with_loss, self.adam, manager)
+        elif device_target == "GPU" or device_target == "CPU" :
+            self.train_net = myTrainOneStepCell(self.net_with_loss, optimizer=self.adam)
+        else:
+            raise Exception("Target error, GPU or Ascend is supported.")
         super(MuzeroModelMS, self).__init__(model_info)
+        self.recur_infer_net.compile(ms.Tensor(np.zeros((1, 260))).astype(ms.float32))
+        self.init_infer_net.compile(ms.Tensor(np.zeros((1, 84, 84, 4))).astype(ms.float32))
 
     def create_model(self, model_info):
         self.full_model = MuzeroBaseMS(self.representation_network,
@@ -234,7 +263,7 @@ class MuzeroModelMS(XTModel_MS):
         return np.asarray(value_list)
 
 
-class MyTrainOneStepCell(TrainOneStepCell):
+class myTrainOneStepCell(TrainOneStepCell):
     def __init__(self, network, optimizer):
         super(MyTrainOneStepCell, self).__init__(network, optimizer)
         self.depend = ops.Depend()

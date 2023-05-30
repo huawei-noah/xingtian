@@ -17,6 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+
 from zeus.common.util.register import Registers
 from xt.model.model_ms import XTModel_MS
 from xt.model.ms_utils import MSVariables
@@ -26,7 +27,7 @@ from xt.model.ms_compat import Conv2d, Dense, Flatten, ReLU, Adam, MSELoss, With
     DynamicLossScaleUpdateCell, Cast, Cell, Tensor
 from zeus.common.util.common import import_config
 import mindspore.ops as ops
-
+import numpy as np
 
 @Registers.model
 class DqnCnnMS(XTModel_MS):
@@ -42,6 +43,7 @@ class DqnCnnMS(XTModel_MS):
         self.dueling = model_config.get('dueling', False)
         self.net = DqnCnnNet(state_dim=self.state_dim, action_dim=self.action_dim, dueling=self.dueling)
         super().__init__(model_info)
+        self.net.compile(ms.Tensor(np.zeros((1, 84, 84, 4))).astype(ms.float32))
 
     def create_model(self, model_info):
         """Create Deep-Q CNN network."""
@@ -117,13 +119,13 @@ class MyTrainOneStepCell(ms.nn.TrainOneStepWithLossScaleCell):
         super(MyTrainOneStepCell, self).__init__(network, optimizer, scale_sense)
         self.grad_clip = grad_clip
 
-    def construct(self, state, label):
+    def construct(self,*inputs ):
         weights = self.weights
-        loss = self.network(state, label)
+        loss = self.network(*inputs)
         scaling_sens = self.scale_sense
         status, scaling_sens = self.start_overflow_check(loss, scaling_sens)
         scaling_sens_filled = ops.ones_like(loss) * ops.cast(scaling_sens, ops.dtype(loss))
-        grads = self.grad(self.network, weights)(state, label, scaling_sens_filled)
+        grads = self.grad(self.network, weights)(*inputs, scaling_sens_filled)
         grads = self.hyper_map(ops.partial(_grad_scale, scaling_sens), grads)
         if self.grad_clip:
             grads = ops.clip_by_global_norm(grads, self.clipnorm)
