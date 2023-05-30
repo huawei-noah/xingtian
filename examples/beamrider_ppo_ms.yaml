@@ -32,7 +32,7 @@ model_para:
       VF_SHARE_LAYERS: True
       activation: relu
       hidden_sizes: [512]
-
+      USE_AMSGRAD: False
 env_num: 10
 speedup: False
 

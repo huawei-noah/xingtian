@@ -66,10 +66,10 @@ class PPOMS(XTModel_MS):
         self.verbose = model_config.get('SUMMARY', SUMMARY)
         self.vf_clip = Tensor(model_config.get('VF_CLIP', VF_CLIP))
         self.dist = make_dist(self.action_type, self.action_dim)
-
+        self.amsgrad = model_config.get('USE_AMSGRAD', False)
         super().__init__(model_info)
         self.predict_net = self.PPOPredictPolicy(self.model, self.dist)
-        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=self._lr, use_amsgrad=True, use_locking=True)
+        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=self._lr, use_amsgrad=self.amsgrad, use_locking=True)
         loss_fn = WithLossCell(self.critic_loss_coef, self.clip_ratio, self.ent_coef, self.vf_clip)
         forward_fn = NetWithLoss(self.model, loss_fn, self.dist)
         device_target = ms.get_context("device_target")
