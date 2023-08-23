@@ -28,7 +28,7 @@ from xt.model.ms_compat import Conv2d, Dense, Flatten, ReLU, Adam, MSELoss, With
 from zeus.common.util.common import import_config
 import mindspore.ops as ops
 import numpy as np
-
+ms.set_context(mode =ms.GRAPH_MODE)
 @Registers.model
 class DqnCnnMS(XTModel_MS):
     """Docstring for DqnCnn."""

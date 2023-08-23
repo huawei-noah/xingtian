@@ -30,14 +30,17 @@ from xt.model.model_ms import XTModel_MS
 from xt.model.ms_utils import MSVariables
 import mindspore as ms
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
+from mindspore.train import Model
 
-ms.set_context(runtime_num_threads=30)
+
+ms.set_context(runtime_num_threads=5,mode =0)
+
 @Registers.model
 class PPOMS(XTModel_MS):
 
     class PPOPredictPolicy(Cell):
         def __init__(self, net, dist):
-            super(PPOMS.PPOPredictPolicy, self).__init__()
+            super(PPOMS.PPOPredictPolicy, self).__init__(auto_prefix=False)
             self.network = net
             self.dist = dist
 
@@ -70,7 +73,7 @@ class PPOMS(XTModel_MS):
         self.amsgrad = model_config.get('USE_AMSGRAD', False)
         super().__init__(model_info)
         self.predict_net = self.PPOPredictPolicy(self.model, self.dist)
-        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=self._lr, use_amsgrad=self.amsgrad, use_locking=True)
+        adam = Adam(params=self.predict_net.trainable_params(), learning_rate=self._lr, use_amsgrad=True, use_locking=True)
         loss_fn = WithLossCell(self.critic_loss_coef, self.clip_ratio, self.ent_coef, self.vf_clip)
         forward_fn = NetWithLoss(self.model, loss_fn, self.dist)
         device_target = ms.get_context("device_target")
@@ -110,7 +113,7 @@ class PPOMS(XTModel_MS):
                 loss = self.train_net(state_ph, adv_ph, old_logp_ph, behavior_action_ph, target_v_ph, old_v_ph)
                 loss = loss.asnumpy()
                 loss_val.append(np.mean(loss))
-        self.actor_var = MSVariables(self.predict_net)
+        self.actor_var = MSVariables(self.model)
         return np.mean(loss_val)
 
 

@@ -38,6 +38,18 @@ ms = import_ms_compact()
 
 
 # pylint: disable=W0611
+if ms.__version__ in ("2.0.0"):
+    from mindspore.nn import Adam
+    from mindspore.nn import Conv2d, Dense, Flatten, ReLU
+    from mindspore.nn import MSELoss
+    from mindspore.train import Model
+    from mindspore.nn import WithLossCell, TrainOneStepCell, SoftmaxCrossEntropyWithLogits, SequentialCell
+    from mindspore.nn import Cell, WithLossCell, DynamicLossScaleUpdateCell, get_activation, LossBase, FixedLossScaleUpdateCell
+    from mindspore import Model, Tensor
+    from mindspore.ops import Cast, MultitypeFuncGraph, ReduceSum, ReduceMax, ReduceMin, ReduceMean, Reciprocal
+    from mindspore.ops import Depend, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value
+    from mindspore import History, value_and_grad
+
 if ms.__version__ in ("1.9.0"):
     from mindspore.nn import Adam
     from mindspore.nn import Conv2d, Dense, Flatten, ReLU
@@ -49,7 +61,6 @@ if ms.__version__ in ("1.9.0"):
     from mindspore.ops import Cast, MultitypeFuncGraph, ReduceSum, ReduceMax, ReduceMin, ReduceMean, Reciprocal
     from mindspore.ops import Depend, value_and_grad, clip_by_global_norm, Minimum, Maximum, Exp, Square, clip_by_value
     from mindspore import History
-
 
 def loss_to_val(loss):
     """Make keras instance into value."""

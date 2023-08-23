@@ -37,7 +37,7 @@ from xt.model.pb_format import pb_model
 from zeus.common.util.register import Registers
 from mindspore import set_context
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
-set_context(runtime_num_threads=3)
+set_context(runtime_num_threads=3，mode=0)
 
 # pylint: disable=W0201
 

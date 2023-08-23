@@ -3,7 +3,7 @@ import numpy as np
 from xt.model.ms_compat import ms, Cast, ReduceSum, ReduceMax, Tensor
 from mindspore import ops
 from mindspore import ms_class
-
+import mindspore.nn.probability.distribution as msd
 
 @ms_class
 class ActionDist:
@@ -119,9 +119,11 @@ class CategoricalDist(ActionDist):
         self.exp = ops.Exp()
         self.log = ops.Log()
         self.expand_dims = ops.ExpandDims()
-        self.random_categorical = ops.RandomCategorical(dtype=ms.int32)
+        self.random_categorical = ops.RandomCategorical(dtype=ms.int64)
         self.on_value, self.off_value = Tensor(
             1.0, ms.float32), Tensor(0.0, ms.float32)
+        self.new_dist = msd.Categorical(seed =0,dtype=ms.int32)
+
 
     def init_by_param(self, logits):
         self.logits = logits
@@ -134,6 +136,7 @@ class CategoricalDist(ActionDist):
 
     def log_prob(self, x, logits):
         x = self.oneHot(x, self.size, self.on_value, self.off_value)
+        #logits = logits.astype(ms.float32)
         loss, _ = self.softmax_cross(logits, x)
         return -self.expand_dims(loss, -1)
 
@@ -165,7 +168,11 @@ class CategoricalDist(ActionDist):
                               self.log(z_other)), axis=-1)
 
     def sample(self, logits):
-        return self.random_categorical(logits, 1, 0).squeeze(-1)
+        categorical_x = self.exp(logits)
+        norm_log_categorical_x = logits - self.log(self.reduce_sum(categorical_x, -1))
+        norm_action_prob = self.exp(norm_log_categorical_x)
+        samples = self.new_dist.sample((), norm_action_prob)
+        return samples
 
 
 def make_dist(ac_type, ac_dim):
