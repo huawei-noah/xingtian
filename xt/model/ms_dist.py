@@ -123,6 +123,7 @@ class CategoricalDist(ActionDist):
         self.on_value, self.off_value = Tensor(
             1.0, ms.float32), Tensor(0.0, ms.float32)
         self.new_dist = msd.Categorical(seed =0,dtype=ms.int32)
+        self.softmax = ops.Softmax()
 
 
     def init_by_param(self, logits):
@@ -136,7 +137,6 @@ class CategoricalDist(ActionDist):
 
     def log_prob(self, x, logits):
         x = self.oneHot(x, self.size, self.on_value, self.off_value)
-        #logits = logits.astype(ms.float32)
         loss, _ = self.softmax_cross(logits, x)
         return -self.expand_dims(loss, -1)
 
@@ -168,11 +168,10 @@ class CategoricalDist(ActionDist):
                               self.log(z_other)), axis=-1)
 
     def sample(self, logits):
-        categorical_x = self.exp(logits)
-        norm_log_categorical_x = logits - self.log(self.reduce_sum(categorical_x, -1))
-        norm_action_prob = self.exp(norm_log_categorical_x)
-        samples = self.new_dist.sample((), norm_action_prob)
+        prob = self.softmax(logits)
+        samples = self.new_dist.sample((), prob)
         return samples
+
 
 
 def make_dist(ac_type, ac_dim):
