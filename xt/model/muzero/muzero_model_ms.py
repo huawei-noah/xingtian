@@ -33,7 +33,6 @@ from xt.model.muzero.default_config import LR, td_step
 from xt.model.muzero.muzero_utils_ms import value_compression_ms,\
     value_decompression_ms, cross_entropy_ms, scale_gradient_ms
 from zeus.common.util.common import import_config
-from xt.model.pb_format import pb_model
 from zeus.common.util.register import Registers
 from mindspore import set_context
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
@@ -174,10 +173,10 @@ class MuzeroModelMS(XTModel_MS):
             self.reward_max)
         obs = Tensor.from_numpy(state[0])
         action = Tensor.from_numpy(state[1])
-        loss_weights = Tensor.from_numpy(state[2])
-        target_value = Tensor.from_numpy(target_value)
-        target_reward = Tensor.from_numpy(target_reward)
-        target_policy = Tensor.from_numpy(label[2])
+        loss_weights = Tensor.from_numpy(state[2]).astype(ms.float32)
+        target_value = Tensor.from_numpy(target_value).astype(ms.float32)
+        target_reward = Tensor.from_numpy(target_reward).astype(ms.float32)
+        target_policy = Tensor.from_numpy(label[2]).astype(ms.float32)
         loss = self.train_net(
             obs,
             action,
