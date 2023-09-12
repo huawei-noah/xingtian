@@ -144,7 +144,6 @@ class NetWithLoss(Cell):
     def construct(self, state_ph, adv_ph, old_logp_ph, behavior_action, target_v, old_v_ph):
         pi_latent, v_out = self.net(state_ph)
         ent = self.dist.entropy(pi_latent)
-        pi_latent = pi_latent.astype(ms.float16)
         action_log_prob = self.dist.log_prob(behavior_action, pi_latent)
         loss = self._loss_fn(action_log_prob, ent, adv_ph, old_logp_ph, target_v, v_out, old_v_ph)
         return loss
