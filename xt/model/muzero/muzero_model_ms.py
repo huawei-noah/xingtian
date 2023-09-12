@@ -36,8 +36,8 @@ from zeus.common.util.common import import_config
 from zeus.common.util.register import Registers
 from mindspore import set_context
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
-set_context(runtime_num_threads=3, mode=0)
-
+set_context(runtime_num_threads=3, mode=0,device_id=0)
+from mindspore import amp
 # pylint: disable=W0201
 
 @Registers.model
@@ -105,6 +105,7 @@ class MuzeroModelMS(XTModel_MS):
         device_target = ms.get_context("device_target")
         if device_target == 'Ascend':
             manager = FixedLossScaleUpdateCell(loss_scale_value=2**14)
+            self.net_with_loss = amp.auto_mixed_precision(self.net_with_loss, "O2")
             self.train_net = MyTrainOneStepCell(self.net_with_loss, self.adam, manager)
         elif device_target == "GPU" or device_target == "CPU" :
             self.train_net = myTrainOneStepCell(self.net_with_loss, optimizer=self.adam)

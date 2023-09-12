@@ -137,6 +137,9 @@ class CategoricalDist(ActionDist):
 
     def log_prob(self, x, logits):
         x = self.oneHot(x, self.size, self.on_value, self.off_value)
+        if x.dtype != logits.dtype:
+            logits = logits.astype(ms.float16)
+            x = x.astype(ms.float16)
         loss, _ = self.softmax_cross(logits, x)
         return -self.expand_dims(loss, -1)
 

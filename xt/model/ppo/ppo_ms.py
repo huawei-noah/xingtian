@@ -32,8 +32,8 @@ import mindspore as ms
 from xt.model.dqn.dqn_cnn_ms import MyTrainOneStepCell
 from mindspore.train import Model
 
-
-ms.set_context(runtime_num_threads=5,mode =0)
+from mindspore import amp
+ms.set_context(runtime_num_threads=5,mode =0,device_id=0)
 
 @Registers.model
 class PPOMS(XTModel_MS):
@@ -79,6 +79,7 @@ class PPOMS(XTModel_MS):
         device_target = ms.get_context("device_target")
         if device_target == 'Ascend':
             manager = FixedLossScaleUpdateCell(loss_scale_value=2**14)
+            forward_fn = amp.auto_mixed_precision(forward_fn, "O2")
             self.train_net = MyTrainOneStepCell(forward_fn, adam, manager, grad_clip=True, clipnorm=self._max_grad_norm)
         elif device_target == "GPU" or device_target == "CPU":
             self.train_net = myTrainOneStepCell(forward_fn, optimizer=adam, max_grad_norm=self._max_grad_norm)
@@ -143,6 +144,7 @@ class NetWithLoss(Cell):
     def construct(self, state_ph, adv_ph, old_logp_ph, behavior_action, target_v, old_v_ph):
         pi_latent, v_out = self.net(state_ph)
         ent = self.dist.entropy(pi_latent)
+        pi_latent = pi_latent.astype(ms.float16)
         action_log_prob = self.dist.log_prob(behavior_action, pi_latent)
         loss = self._loss_fn(action_log_prob, ent, adv_ph, old_logp_ph, target_v, v_out, old_v_ph)
         return loss
