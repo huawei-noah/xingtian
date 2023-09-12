@@ -1,0 +1,43 @@
+alg_para:
+  alg_name: PPO
+  alg_config:
+    process_num: 1
+    only_save_best_model: True
+
+env_para:
+  env_name: GymEnv
+  env_info:
+    name: Pendulum-v0
+    vision: False
+
+agent_para:
+  agent_name: PPO
+  agent_num : 1
+  agent_config:
+    max_steps: 200
+    complete_step: 2000000
+
+model_para:
+  actor:
+    model_name: PpoMlpMS
+    state_dim: [3]
+    action_dim: 1
+    input_dtype: float32
+    model_config:
+      BATCH_SIZE: 200
+      CRITIC_LOSS_COEF: 1.0
+      ENTROPY_LOSS: 0.01
+      LR: 0.0003
+      LOSS_CLIPPING: 0.2
+      MAX_GRAD_NORM: 5.0
+      NUM_SGD_ITER: 8
+      SUMMARY: False
+      VF_SHARE_LAYERS: False
+      activation: tanh
+      hidden_sizes: [64, 64]
+
+env_num: 10
+speedup: False
+
+benchmark:
+  log_interval_to_train: 10

@@ -1,0 +1,37 @@
+alg_para:
+  alg_name: Muzero
+  alg_config: {
+    "train_per_checkpoint": 100,
+    "prepare_times_per_train": 10,
+    'BUFFER_SIZE': 10000,
+    }
+
+env_para:
+  env_name: AtariEnv
+  env_info: { 'name': BreakoutNoFrameskip-v4, vision': False}
+
+agent_para:
+  agent_name: MuzeroAtari
+  agent_num : 1
+  agent_config: {
+    'max_steps': 200 ,
+    'complete_step': 500000000,
+    'NUM_SIMULATIONS': 50
+    }
+
+model_para:
+  actor:
+    model_name: MuzeroCnnMS
+    state_dim: [84, 84, 4]
+    action_dim: 4
+    max_to_keep: 500
+    model_config: {
+      'reward_min': 0,
+      'reward_max': 50,
+      'value_min': 0,
+      'value_max': 500,
+      'obs_type': 'uint8'
+      }
+
+env_num: 50
+speedup: False

@@ -1,0 +1,40 @@
+alg_para:
+  alg_name: PPO
+
+env_para:
+  env_name: AtariEnv
+  env_info:
+    name: BreakoutNoFrameskip-v4
+    vision: False
+
+agent_para:
+  agent_name: AtariPpo
+  agent_num : 1
+  agent_config:
+    max_steps: 128
+    complete_step: 10000000
+
+model_para:
+  actor:
+    model_name: PpoCnnMS
+    state_dim: [84, 84, 4]
+    action_dim: 4
+    input_dtype: uint8
+    model_config:
+      BATCH_SIZE: 320
+      CRITIC_LOSS_COEF: 1.0
+      ENTROPY_LOSS: 0.003
+      LOSS_CLIPPING: 0.1
+      LR: 0.0004
+      MAX_GRAD_NORM: 5.0
+      NUM_SGD_ITER: 4
+      SUMMARY: False
+      VF_SHARE_LAYERS: True
+      activation: relu
+      hidden_sizes: [256]
+      USE_AMSGRAD: False
+env_num: 10
+speedup: False
+
+benchmark:
+  log_interval_to_train: 10

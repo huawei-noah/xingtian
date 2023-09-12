@@ -24,7 +24,6 @@ from xt.model.dqn.dqn_mlp import layer_normalize, layer_add
 from xt.model import XTModel
 from xt.model.tf_utils import TFVariables
 from zeus.common.util.common import import_config
-
 from zeus.common.util.register import Registers
 
 
